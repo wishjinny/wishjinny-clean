@@ -696,7 +696,7 @@ export async function fetchProducts(options = {}) {
     discount = "",
   } = options;
 
-  if (useMockFallback()) {
+  if (useMockFallback() || options.type === "featured" || options.type === "new") {
     return productFallback(options);
   }
 
