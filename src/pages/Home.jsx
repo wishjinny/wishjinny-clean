@@ -2,10 +2,12 @@
 // Wish Jinny - Premium Marketplace Home Page
 
 
+
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
 import { fetchProducts, updateCart } from "../utils/api";
+
 
 
 const fallbackCategories = [
@@ -44,11 +46,13 @@ const fallbackCategories = [
 ];
 
 
+
 const heroHighlights = [
   "Beauty, fashion, jewellery, toys and more",
   "Hand-picked products at magical prices",
   "New deals and arrivals every week",
 ];
+
 
 
 const benefitCards = [
@@ -75,13 +79,16 @@ const benefitCards = [
 ];
 
 
+
 function Home() {
   const navigate = useNavigate();
+
 
 
   const [featured, setFeatured] = useState([]);
   const [newArrivals, setNewArrivals] = useState([]);
   const [categories, setCategories] = useState([]);
+
 
 
   const [loading, setLoading] = useState(true);
@@ -91,10 +98,12 @@ function Home() {
   const [cartLoadingId, setCartLoadingId] = useState("");
 
 
+
   const [searchQuery, setSearchQuery] = useState("");
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const [newsletterError, setNewsletterError] = useState("");
+
 
 
   const [imageErrors, setImageErrors] = useState({});
@@ -103,10 +112,12 @@ function Home() {
   const [videoError, setVideoError] = useState(false);
 
 
+
   const getListFromResponse = (response, keys = []) => {
     if (Array.isArray(response)) {
       return response;
     }
+
 
 
     for (const key of keys) {
@@ -115,10 +126,12 @@ function Home() {
       }
 
 
+
       if (Array.isArray(response?.data?.[key])) {
         return response.data[key];
       }
     }
+
 
 
     if (Array.isArray(response?.items)) {
@@ -126,9 +139,11 @@ function Home() {
     }
 
 
+
     if (Array.isArray(response?.data?.items)) {
       return response.data.items;
     }
+
 
 
     if (Array.isArray(response?.data)) {
@@ -136,8 +151,10 @@ function Home() {
     }
 
 
+
     return [];
   };
+
 
 
   const normaliseCategory = (category, index) => {
@@ -148,10 +165,12 @@ function Home() {
       "Wish Jinny Category";
 
 
+
     const matchingFallback = fallbackCategories.find(
       (fallbackCategory) =>
         fallbackCategory.name.toLowerCase() === categoryName.toLowerCase()
     );
+
 
 
     return {
@@ -180,13 +199,16 @@ function Home() {
   };
 
 
+
   useEffect(() => {
     let isMounted = true;
+
 
 
     const loadData = async () => {
       setLoading(true);
       setPageError("");
+
 
 
       try {
@@ -198,9 +220,11 @@ function Home() {
           ]);
 
 
+
         if (!isMounted) {
           return;
         }
+
 
 
         const featuredProducts =
@@ -211,6 +235,7 @@ function Home() {
                 "featuredProducts",
               ])
             : [];
+
 
 
         const newProducts =
@@ -224,6 +249,7 @@ function Home() {
             : [];
 
 
+
         const categoryList =
           categoriesResult.status === "fulfilled"
             ? getListFromResponse(categoriesResult.value, [
@@ -233,15 +259,18 @@ function Home() {
             : [];
 
 
+
         setFeatured(featuredProducts);
         setNewArrivals(newProducts);
         setCategories(categoryList.map(normaliseCategory));
+
 
 
         const hasFailedRequest =
           featuredResult.status === "rejected" ||
           newResult.status === "rejected" ||
           categoriesResult.status === "rejected";
+
 
 
         if (hasFailedRequest) {
@@ -266,7 +295,9 @@ function Home() {
     };
 
 
+
     loadData();
+
 
 
     return () => {
@@ -275,17 +306,21 @@ function Home() {
   }, []);
 
 
+
   const displayedCategories = useMemo(() => {
     return categories.length > 0 ? categories.slice(0, 8) : fallbackCategories;
   }, [categories]);
+
 
 
   const getProductId = (product) =>
     product?.id || product?._id || product?.product_id || "";
 
 
+
   const handleAddToCart = async (product) => {
     const productId = getProductId(product);
+
 
 
     if (!productId) {
@@ -294,9 +329,11 @@ function Home() {
     }
 
 
+
     setCartError("");
     setCartMessage("");
     setCartLoadingId(`add-${productId}`);
+
 
 
     try {
@@ -306,9 +343,11 @@ function Home() {
       });
 
 
+
       if (response?.success === false) {
         throw new Error(response?.message || "Could not add product to cart.");
       }
+
 
 
       setCartMessage(
@@ -322,8 +361,10 @@ function Home() {
   };
 
 
+
   const handleBuyNow = async (product) => {
     const productId = getProductId(product);
+
 
 
     if (!productId) {
@@ -332,9 +373,11 @@ function Home() {
     }
 
 
+
     setCartError("");
     setCartMessage("");
     setCartLoadingId(`buy-${productId}`);
+
 
 
     try {
@@ -344,9 +387,11 @@ function Home() {
       });
 
 
+
       if (response?.success === false) {
         throw new Error(response?.message || "Could not start checkout.");
       }
+
 
 
       navigate("/cart");
@@ -357,11 +402,14 @@ function Home() {
   };
 
 
+
   const handleSearch = (event) => {
     event.preventDefault();
 
 
+
     const trimmedQuery = searchQuery.trim();
+
 
 
     if (!trimmedQuery) {
@@ -370,19 +418,24 @@ function Home() {
     }
 
 
+
     navigate(`/shop?search=${encodeURIComponent(trimmedQuery)}`);
   };
+
 
 
   const handleNewsletterSubmit = (event) => {
     event.preventDefault();
 
 
+
     const email = newsletterEmail.trim();
+
 
 
     setNewsletterMessage("");
     setNewsletterError("");
+
 
 
     if (!email) {
@@ -391,10 +444,12 @@ function Home() {
     }
 
 
+
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       setNewsletterError("Please enter a valid email address.");
       return;
     }
+
 
 
     setNewsletterMessage(
@@ -402,6 +457,7 @@ function Home() {
     );
     setNewsletterEmail("");
   };
+
 
 
   const getCategoryImage = (category) => {
@@ -414,6 +470,7 @@ function Home() {
   };
 
 
+
   const CategoryIcon = ({ type }) => {
     const commonProps = {
       viewBox: "0 0 24 24",
@@ -423,6 +480,7 @@ function Home() {
       className: "h-9 w-9",
       "aria-hidden": true,
     };
+
 
 
     if (type === "hanger") {
@@ -438,6 +496,7 @@ function Home() {
     }
 
 
+
     if (type === "gem") {
       return (
         <svg {...commonProps}>
@@ -446,6 +505,7 @@ function Home() {
         </svg>
       );
     }
+
 
 
     if (type === "toy") {
@@ -462,6 +522,7 @@ function Home() {
     }
 
 
+
     return (
       <svg {...commonProps}>
         <path
@@ -472,6 +533,7 @@ function Home() {
       </svg>
     );
   };
+
 
 
   const SearchIcon = () => (
@@ -489,6 +551,7 @@ function Home() {
   );
 
 
+
   const ArrowIcon = () => (
     <svg
       aria-hidden="true"
@@ -502,6 +565,7 @@ function Home() {
       <path d="m13 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
+
 
 
   const LampIcon = () => (
@@ -548,6 +612,7 @@ function Home() {
   );
 
 
+
   const ProductSkeletons = () => (
     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
       {[1, 2, 3, 4].map((item) => (
@@ -568,12 +633,14 @@ function Home() {
   );
 
 
+
   return (
     <main className="min-h-screen bg-white text-slate-800">
       <section className="relative overflow-hidden bg-gradient-to-br from-indigo-950 via-indigo-800 to-purple-700 px-5 py-14 text-white sm:px-8 md:py-20 lg:px-12">
         <div className="absolute -left-24 top-8 h-64 w-64 rounded-full bg-yellow-300/20 blur-3xl" />
         <div className="absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-fuchsia-400/20 blur-3xl" />
         <div className="absolute left-1/2 top-6 h-32 w-32 -translate-x-1/2 rounded-full bg-white/10 blur-2xl" />
+
 
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2">
@@ -583,10 +650,12 @@ function Home() {
             </p>
 
 
+
             <h1 className="text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
               Make Your Wish
               <span className="block text-yellow-300">Come True.</span>
             </h1>
+
 
 
             <p className="mt-6 max-w-xl text-base leading-7 text-indigo-100 sm:text-lg">
@@ -594,6 +663,7 @@ function Home() {
               fashion, jewellery, toys, gifting and everyday essentials.
               Discover something magical every time you shop.
             </p>
+
 
 
             <ul className="mt-6 space-y-3 text-sm text-indigo-100 sm:text-base">
@@ -608,6 +678,7 @@ function Home() {
             </ul>
 
 
+
             <form
               onSubmit={handleSearch}
               className="mt-8 flex max-w-xl flex-col gap-3 rounded-2xl bg-white p-3 shadow-2xl sm:flex-row"
@@ -617,10 +688,12 @@ function Home() {
               </label>
 
 
+
               <div className="relative min-w-0 flex-1">
                 <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-indigo-600">
                   <SearchIcon />
                 </span>
+
 
 
                 <input
@@ -634,6 +707,7 @@ function Home() {
               </div>
 
 
+
               <button
                 type="submit"
                 className="rounded-xl bg-yellow-400 px-6 py-3 text-sm font-extrabold text-indigo-950 transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-200"
@@ -643,6 +717,7 @@ function Home() {
             </form>
 
 
+
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
                 to="/shop"
@@ -650,6 +725,7 @@ function Home() {
               >
                 Shop Now
               </Link>
+
 
 
               <Link
@@ -662,8 +738,10 @@ function Home() {
           </div>
 
 
+
           <div className="relative mx-auto flex w-full max-w-lg justify-center">
             <div className="absolute inset-10 rounded-full bg-yellow-300/20 blur-3xl" />
+
 
 
             <div className="relative flex min-h-[340px] w-full items-center justify-center overflow-hidden rounded-[2rem] border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-sm sm:min-h-[420px]">
@@ -687,6 +765,7 @@ function Home() {
               )}
 
 
+
               <div className="absolute bottom-5 left-5 right-5 rounded-2xl bg-white/95 p-4 text-indigo-950 shadow-lg">
                 <p className="text-xs font-bold uppercase tracking-wider text-purple-600">
                   Wish Jinny Special
@@ -701,6 +780,7 @@ function Home() {
       </section>
 
 
+
       <section className="border-b border-indigo-100 bg-indigo-50 px-5 py-4 sm:px-8 lg:px-12">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-center text-sm font-semibold text-indigo-900">
           <span>✨ Curated shopping for every occasion</span>
@@ -711,6 +791,7 @@ function Home() {
       </section>
 
 
+
       <section className="bg-gradient-to-r from-purple-100 via-fuchsia-50 to-yellow-50 px-5 py-12 sm:px-8 lg:px-12">
         <div className="mx-auto grid max-w-7xl items-center gap-8 overflow-hidden rounded-3xl bg-white p-6 shadow-lg md:grid-cols-2 md:p-10">
           <div>
@@ -719,15 +800,18 @@ function Home() {
             </p>
 
 
+
             <h2 className="mt-3 text-3xl font-black text-indigo-950 sm:text-4xl">
               Magical Offers Await You
             </h2>
+
 
 
             <p className="mt-4 max-w-lg leading-7 text-slate-600">
               Explore exclusive deals, festive gifting ideas and enchanted
               discounts across your favourite Wish Jinny collections.
             </p>
+
 
 
             <Link
@@ -737,6 +821,7 @@ function Home() {
               Explore Offers
             </Link>
           </div>
+
 
 
           <div className="flex min-h-[220px] items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-purple-200 via-fuchsia-100 to-yellow-100 shadow-md">
@@ -763,6 +848,7 @@ function Home() {
       </section>
 
 
+
       <section className="bg-yellow-50 px-5 py-12 sm:px-8 lg:px-12">
         <div className="mx-auto grid max-w-7xl items-center gap-8 overflow-hidden rounded-3xl border border-yellow-200 bg-gradient-to-r from-yellow-100 via-amber-50 to-orange-50 p-6 shadow-md lg:grid-cols-2 lg:p-10">
           <div>
@@ -771,15 +857,18 @@ function Home() {
             </p>
 
 
+
             <h2 className="mt-3 text-4xl font-black text-red-600 sm:text-5xl">
               Up to 50% Off
             </h2>
+
 
 
             <p className="mt-4 max-w-xl text-lg leading-7 text-slate-700">
               Limited-time magical savings on selected beauty, fashion,
               jewellery, toy and lifestyle products.
             </p>
+
 
 
             <Link
@@ -789,6 +878,7 @@ function Home() {
               Shop Discounted Products
             </Link>
           </div>
+
 
 
           <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950 via-purple-800 to-fuchsia-700 shadow-xl">
@@ -815,12 +905,14 @@ function Home() {
             )}
 
 
+
             {!videoError && (
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-indigo-950/45 via-transparent to-transparent" />
             )}
           </div>
         </div>
       </section>
+
 
 
       <section className="px-5 py-14 sm:px-8 lg:px-12">
@@ -839,6 +931,7 @@ function Home() {
             </div>
 
 
+
             <Link
               to="/shop?type=featured"
               className="text-sm font-bold text-indigo-700 transition hover:text-purple-700"
@@ -846,6 +939,7 @@ function Home() {
               View all featured products →
             </Link>
           </div>
+
 
 
           {loading ? (
@@ -883,6 +977,7 @@ function Home() {
       </section>
 
 
+
       <section className="bg-slate-50 px-5 py-14 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -899,6 +994,7 @@ function Home() {
             </div>
 
 
+
             <Link
               to="/shop?type=new"
               className="text-sm font-bold text-indigo-700 transition hover:text-purple-700"
@@ -906,6 +1002,7 @@ function Home() {
               View all new arrivals →
             </Link>
           </div>
+
 
 
           {loading ? (
@@ -943,6 +1040,7 @@ function Home() {
       </section>
 
 
+
       <section className="px-5 py-14 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 text-center">
@@ -959,6 +1057,7 @@ function Home() {
           </div>
 
 
+
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {displayedCategories.map((category, index) => {
               const categoryId =
@@ -968,12 +1067,15 @@ function Home() {
                 `category-${index}`;
 
 
+
               const categoryName =
                 category?.name || category?.title || "Wish Jinny Category";
 
 
+
               const categoryImage = getCategoryImage(category);
               const hasImageError = imageErrors[categoryId];
+
 
 
               return (
@@ -1009,6 +1111,7 @@ function Home() {
                   </div>
 
 
+
                   <div className="p-4 text-center">
                     <h3 className="text-sm font-black text-indigo-950 sm:text-base">
                       {categoryName}
@@ -1023,6 +1126,7 @@ function Home() {
           </div>
 
 
+
           <div className="mt-8 text-center">
             <Link
               to="/categories"
@@ -1033,6 +1137,51 @@ function Home() {
           </div>
         </div>
       </section>
+
+
+
+      <section className="bg-white px-5 py-14 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8 text-center">
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-purple-600">
+              Wish Jinny collection
+            </p>
+            <h2 className="mt-2 text-3xl font-black text-indigo-950">
+              Products
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-slate-600">
+              Explore magical products across beauty, fashion, jewellery, toys,
+              gifting and more.
+            </p>
+          </div>
+
+
+
+          {loading ? (
+            <ProductSkeletons />
+          ) : featured.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {featured.slice(0, 8).map((product, index) => (
+                <ProductCard
+                  key={product?.id || product?._id || `product-${index}`}
+                  product={product}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  isAdding={cartLoadingId === `add-${getProductId(product)}`}
+                  isBuying={cartLoadingId === `buy-${getProductId(product)}`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50 p-8 text-center">
+              <p className="text-lg font-bold text-indigo-950">
+                Products will appear here soon.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+
 
 
       <section className="bg-gradient-to-br from-indigo-950 via-indigo-900 to-purple-900 px-5 py-14 text-white sm:px-8 lg:px-12">
@@ -1049,6 +1198,7 @@ function Home() {
               self-care, gifting and everyday life.
             </p>
           </div>
+
 
 
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -1069,6 +1219,7 @@ function Home() {
       </section>
 
 
+
       <section className="bg-yellow-50 px-5 py-14 sm:px-8 lg:px-12">
         <div className="mx-auto grid max-w-7xl items-center gap-8 rounded-3xl border border-yellow-200 bg-white p-6 shadow-lg md:grid-cols-2 md:p-10">
           <div>
@@ -1085,6 +1236,7 @@ function Home() {
           </div>
 
 
+
           <form onSubmit={handleNewsletterSubmit} className="w-full">
             <label
               htmlFor="newsletter-email"
@@ -1092,6 +1244,7 @@ function Home() {
             >
               Your email address
             </label>
+
 
 
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -1105,6 +1258,7 @@ function Home() {
               />
 
 
+
               <button
                 type="submit"
                 className="rounded-xl bg-indigo-700 px-6 py-3 text-sm font-extrabold text-white transition hover:bg-indigo-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100"
@@ -1114,11 +1268,13 @@ function Home() {
             </div>
 
 
+
             {newsletterError && (
               <p role="alert" className="mt-3 text-sm font-semibold text-rose-600">
                 {newsletterError}
               </p>
             )}
+
 
 
             {newsletterMessage && (
@@ -1129,6 +1285,7 @@ function Home() {
           </form>
         </div>
       </section>
+
 
 
       {(cartMessage || cartError || pageError) && (
@@ -1146,6 +1303,7 @@ function Home() {
     </main>
   );
 }
+
 
 
 export default Home;
