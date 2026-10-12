@@ -747,7 +747,7 @@ function Home() {
             <div className="relative flex min-h-[340px] w-full items-center justify-center overflow-hidden rounded-[2rem] border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-sm sm:min-h-[420px]">
               {!heroImageError ? (
                 <img
-                  src="/assets/genie.png"
+                  src="/assets/lamp-rub.png"
                   alt="Wish Jinny magical genie"
                   onError={() => setHeroImageError(true)}
                   className="mx-auto max-h-[410px] w-full object-contain drop-shadow-2xl"
@@ -827,7 +827,7 @@ function Home() {
           <div className="flex min-h-[220px] items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-purple-200 via-fuchsia-100 to-yellow-100 shadow-md">
             {!promoImageError ? (
               <img
-                src="/assets/promo-banner.jpg"
+                src="/assets/wish-jinny-banner.png"
                 alt="Wish Jinny promotional offers"
                 onError={() => setPromoImageError(true)}
                 className="h-full min-h-[220px] w-full object-cover"
