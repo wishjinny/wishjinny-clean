@@ -5,6 +5,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  Navigate,
   useLocation,
 } from "react-router-dom";
 
@@ -37,6 +38,11 @@ import Terms from "./pages/Terms";
 import Refund from "./pages/Refund";
 import Shipping from "./pages/Shipping";
 import NotFound from "./pages/NotFound";
+
+import { AdminDataProvider, useAdminData } from "./admin/AdminData";
+import AdminLogin from "./admin/AdminLogin";
+import AdminLayout from "./admin/AdminLayout";
+import AdminDashboard from "./admin/AdminDashboard";
 
 class AppErrorBoundary extends Component {
   constructor(props) {
@@ -135,54 +141,89 @@ function ScrollToTop() {
   return null;
 }
 
+function AdminRoutes() {
+  const { data } = useAdminData();
+
+  const isLoggedIn =
+    localStorage.getItem("wishjinny_admin_logged_in") === "yes";
+
+  if (!isLoggedIn) {
+    return <AdminLogin />;
+  }
+
+  return (
+    <Routes>
+      <Route path="/admin" element={<Navigate to="/admin/dashboard" />} />
+
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route path="dashboard" element={<AdminDashboard />} />
+        <Route path="products" element={<AdminDashboard />} />
+        <Route path="products/new" element={<AdminDashboard />} />
+        <Route path="about" element={<AdminDashboard />} />
+        <Route path="contact" element={<AdminDashboard />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/admin/dashboard" />} />
+    </Routes>
+  );
+}
+
 function AppRoutes() {
+  const { pathname } = useLocation();
+
+  const isAdminRoute = pathname.startsWith("/admin");
+
   return (
     <>
       <ScrollToTop />
 
-      <MainLayout>
-        <Header />
-        <Navbar />
+      {isAdminRoute ? (
+        <AdminRoutes />
+      ) : (
+        <MainLayout>
+          <Header />
+          <Navbar />
 
-        <main className="min-h-[60vh]">
-          <Routes>
-            <Route path="/" element={<Home />} />
+          <main className="min-h-[60vh]">
+            <Routes>
+              <Route path="/" element={<Home />} />
 
-            <Route path="/shop" element={<Shop />} />
-            <Route path="/categories" element={<Categories />} />
-            <Route path="/product/:id" element={<ProductDetails />} />
-            <Route path="/search" element={<Search />} />
+              <Route path="/shop" element={<Shop />} />
+              <Route path="/categories" element={<Categories />} />
+              <Route path="/product/:id" element={<ProductDetails />} />
+              <Route path="/search" element={<Search />} />
 
-            <Route path="/wishlist" element={<Wishlist />} />
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="/payment" element={<Payment />} />
+              <Route path="/wishlist" element={<Wishlist />} />
+              <Route path="/cart" element={<Cart />} />
+              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/payment" element={<Payment />} />
 
-            <Route path="/order-success" element={<OrderSuccess />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/orders/:id" element={<OrderDetails />} />
+              <Route path="/order-success" element={<OrderSuccess />} />
+              <Route path="/orders" element={<Orders />} />
+              <Route path="/orders/:id" element={<OrderDetails />} />
 
-            <Route path="/account" element={<Account />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+              <Route path="/account" element={<Account />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
 
-            <Route path="/about" element={<About />} />
-            <Route path="/contact" element={<Contact />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
 
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/refund" element={<Refund />} />
-            <Route path="/shipping" element={<Shipping />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/refund" element={<Refund />} />
+              <Route path="/shipping" element={<Shipping />} />
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
 
-        <Footer />
+          <Footer />
 
-        <JinnyAI />
-        <VoiceAssistant />
-      </MainLayout>
+          <JinnyAI />
+          <VoiceAssistant />
+        </MainLayout>
+      )}
     </>
   );
 }
@@ -190,9 +231,11 @@ function AppRoutes() {
 function App() {
   return (
     <AppErrorBoundary>
-      <Router>
-        <AppRoutes />
-      </Router>
+      <AdminDataProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </AdminDataProvider>
     </AppErrorBoundary>
   );
 }
