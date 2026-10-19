@@ -1487,5 +1487,52 @@
       });
     });
   </script>
+
+<!-- WISHJINNY_ADMIN_ENTRY_V1 -->
+<script type="module">
+  const isAdminPage =
+    location.pathname === "/admin" ||
+    location.pathname.startsWith("/admin/");
+
+  if (isAdminPage) {
+    const root = document.createElement("div");
+    root.id = "root";
+    root.textContent = "Wish Jinny Admin load ho raha hai...";
+    document.body.replaceChildren(root);
+
+    try {
+      await import("/src/main.jsx");
+    } catch (error) {
+      console.error("Admin startup error:", error);
+
+      const box = document.createElement("section");
+      box.style.cssText =
+        "margin:24px;padding:24px;border:1px solid #fecdd3;" +
+        "background:#fff1f2;color:#9f1239;font:16px Arial,sans-serif;";
+
+      const heading = document.createElement("h1");
+      heading.textContent = "Admin startup error";
+
+      const details = document.createElement("pre");
+      details.style.cssText =
+        "margin-top:16px;white-space:pre-wrap;overflow-wrap:anywhere;";
+      details.textContent = String(error?.stack || error);
+
+      box.append(heading, details);
+      document.body.replaceChildren(box);
+    }
+  } else {
+    const link = document.createElement("a");
+    link.href = "/admin";
+    link.textContent = "Admin Panel";
+    link.style.cssText =
+      "position:fixed;right:20px;bottom:100px;z-index:99999;" +
+      "padding:14px 20px;border-radius:12px;background:#4338ca;" +
+      "color:white;font:bold 15px Arial,sans-serif;" +
+      "text-decoration:none;border:2px solid white;" +
+      "box-shadow:0 8px 24px rgba(0,0,0,.25);";
+    document.body.appendChild(link);
+  }
+</script>
 </body>
 </html>
