@@ -1,6 +1,5 @@
 // src/App.jsx
 
-
 import { Component, useEffect } from "react";
 import {
   BrowserRouter as Router,
@@ -10,14 +9,11 @@ import {
   useLocation,
 } from "react-router-dom";
 
-
 import MainLayout from "./layouts/MainLayout";
 import Header from "./components/Header";
-import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import JinnyAI from "./components/JinnyAI";
 import VoiceAssistant from "./components/VoiceAssistant";
-
 
 import Home from "./pages/Home";
 import Shop from "./pages/Shop";
@@ -42,25 +38,21 @@ import Refund from "./pages/Refund";
 import Shipping from "./pages/Shipping";
 import NotFound from "./pages/NotFound";
 
-
-import { AdminDataProvider, useAdminData } from "./admin/AdminData";
+import { AdminDataProvider } from "./admin/AdminData";
 import AdminLogin from "./admin/AdminLogin";
 import AdminLayout from "./admin/AdminLayout";
 import AdminDashboard from "./admin/AdminDashboard";
 import ProductManager from "./admin/ProductManager";
 
-
 class AppErrorBoundary extends Component {
   constructor(props) {
     super(props);
-
 
     this.state = {
       hasError: false,
       errorMessage: "",
     };
   }
-
 
   static getDerivedStateFromError(error) {
     return {
@@ -69,21 +61,17 @@ class AppErrorBoundary extends Component {
     };
   }
 
-
   componentDidCatch(error, errorInfo) {
     console.error("Wish Jinny app render error:", error, errorInfo);
   }
-
 
   handleReload = () => {
     window.location.reload();
   };
 
-
   handleGoHome = () => {
     window.location.href = "/";
   };
-
 
   render() {
     if (this.state.hasError) {
@@ -94,29 +82,24 @@ class AppErrorBoundary extends Component {
               🧞
             </div>
 
-
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-indigo-600">
               Wish Jinny
             </p>
 
-
             <h1 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
               We need a moment
             </h1>
-
 
             <p className="mt-3 text-sm leading-6 text-slate-600">
               Page load karte waqt ek problem aa gayi. Aap Home page par
               wapas ja sakte hain ya page reload kar sakte hain.
             </p>
 
-
             {this.state.errorMessage && (
               <p className="mt-5 break-words rounded-xl border border-red-100 bg-red-50 p-3 text-left text-xs leading-5 text-red-700">
                 {this.state.errorMessage}
               </p>
             )}
-
 
             <div className="mt-7 flex flex-wrap justify-center gap-3">
               <button
@@ -126,7 +109,6 @@ class AppErrorBoundary extends Component {
               >
                 Go to Home
               </button>
-
 
               <button
                 type="button"
@@ -141,15 +123,12 @@ class AppErrorBoundary extends Component {
       );
     }
 
-
     return this.props.children;
   }
 }
 
-
 function ScrollToTop() {
   const { pathname } = useLocation();
-
 
   useEffect(() => {
     window.scrollTo({
@@ -159,20 +138,16 @@ function ScrollToTop() {
     });
   }, [pathname]);
 
-
   return null;
 }
-
 
 function AdminRoutes() {
   const isLoggedIn =
     localStorage.getItem("wishjinny_admin_logged_in") === "yes";
 
-
   if (!isLoggedIn) {
     return <AdminLogin />;
   }
-
 
   return (
     <Routes>
@@ -185,77 +160,61 @@ function AdminRoutes() {
         <Route path="contact" element={<AdminDashboard />} />
       </Route>
 
-
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
     </Routes>
   );
 }
 
-
 function AppRoutes() {
   const { pathname } = useLocation();
 
-
   const isAdminRoute = pathname.startsWith("/admin");
-
 
   return (
     <>
       <ScrollToTop />
-
 
       {isAdminRoute ? (
         <AdminRoutes />
       ) : (
         <MainLayout>
           <Header />
-          <Navbar />
-
 
           <main className="min-h-[60vh]">
             <Routes>
               <Route path="/" element={<Home />} />
-
 
               <Route path="/shop" element={<Shop />} />
               <Route path="/categories" element={<Categories />} />
               <Route path="/product/:id" element={<ProductDetails />} />
               <Route path="/search" element={<Search />} />
 
-
               <Route path="/wishlist" element={<Wishlist />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/payment" element={<Payment />} />
 
-
               <Route path="/order-success" element={<OrderSuccess />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/orders/:id" element={<OrderDetails />} />
-
 
               <Route path="/account" element={<Account />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
 
-
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<Contact />} />
-
 
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/refund" element={<Refund />} />
               <Route path="/shipping" element={<Shipping />} />
 
-
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
 
-
           <Footer />
-
 
           <JinnyAI />
           <VoiceAssistant />
@@ -264,7 +223,6 @@ function AppRoutes() {
     </>
   );
 }
-
 
 function App() {
   return (
@@ -277,6 +235,5 @@ function App() {
     </AppErrorBoundary>
   );
 }
-
 
 export default App;
