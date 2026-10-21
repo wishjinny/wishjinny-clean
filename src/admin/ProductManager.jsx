@@ -1,1126 +1,2689 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  fetchProducts,
+  fetchProductDetails,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  publishProduct,
+  unpublishProduct,
+  uploadProductMedia,
+  updateProductVariants,
+  updateProductCategories,
+  approveProduct,
+  rejectProduct,
+  fetchProductPerformance,
+  bulkUpdateProducts,
+  exportProductsCSV,
+  exportProductsExcel,
+  exportProductsPDF,
+  logAuditEvent,
+} from "../utils/api";
+
+
+const PAGE_SIZE = 10;
+
+
+const emptyProductForm = {
+  name: "",
+  description: "",
+  sku: "",
+  category: "",
+  subcategory: "",
+  price: "",
+  discountPrice: "",
+  stock: "",
+  vendor: "",
+  status: "draft",
+};
+
 
 function ProductManager() {
-  const initialProducts = [
-    {
-      id: "WJ-1001",
-      name: "Radiance Glow Skincare Kit",
-      category: "Beauty & Skincare",
-      price: 1299,
-      originalPrice: 1699,
-      stock: 42,
-      status: "Active",
-      featured: true,
-      createdAt: "2026-09-28",
-      description: "A complete daily skincare ritual for a soft, radiant glow.",
-    },
-    {
-      id: "WJ-1002",
-      name: "Golden Aura Jewellery Set",
-      category: "Jewellery",
-      price: 2499,
-      originalPrice: 3299,
-      stock: 18,
-      status: "Active",
-      featured: true,
-      createdAt: "2026-09-26",
-      description: "Elegant festive jewellery designed to make every wish shine.",
-    },
-    {
-      id: "WJ-1003",
-      name: "Everyday Chic Handbag",
-      category: "Fashion",
-      price: 1899,
-      originalPrice: 2199,
-      stock: 8,
-      status: "Low Stock",
-      featured: false,
-      createdAt: "2026-09-21",
-      description: "A versatile everyday handbag for effortless style.",
-    },
-    {
-      id: "WJ-1004",
-      name: "Magic Learning Toy Box",
-      category: "Toys & Kids",
-      price: 999,
-      originalPrice: 1399,
-      stock: 35,
-      status: "Active",
-      featured: false,
-      createdAt: "2026-09-18",
-      description: "Fun learning activities packed into one magical toy box.",
-    },
-    {
-      id: "WJ-1005",
-      name: "Lavender Dream Home Fragrance",
-      category: "Everyday Essentials",
-      price: 699,
-      originalPrice: 899,
-      stock: 0,
-      status: "Out of Stock",
-      featured: false,
-      createdAt: "2026-09-15",
-      description: "A calming lavender fragrance for peaceful everyday moments.",
-    },
-    {
-      id: "WJ-1006",
-      name: "Silk Bloom Fashion Scarf",
-      category: "Fashion",
-      price: 849,
-      originalPrice: 1099,
-      stock: 24,
-      status: "Draft",
-      featured: false,
-      createdAt: "2026-09-11",
-      description: "A soft statement scarf with an elegant floral finish.",
-    },
-  ];
-
-  const emptyProduct = {
-    id: "",
-    name: "",
-    category: "Beauty & Skincare",
-    price: "",
-    originalPrice: "",
-    stock: "",
-    status: "Active",
-    featured: false,
-    description: "",
-  };
-
-  const [products, setProducts] = useState(initialProducts);
-  const [searchText, setSearchText] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All Categories");
-  const [selectedStatus, setSelectedStatus] = useState("All Statuses");
-  const [sortBy, setSortBy] = useState("newest");
+  const [products, setProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+
+
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [actionLoading, setActionLoading] = useState("");
+
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+
+
+  const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [formData, setFormData] = useState(emptyProduct);
-  const [notification, setNotification] = useState("");
-  const [viewMode, setViewMode] = useState("table");
+  const [productForm, setProductForm] = useState(emptyProductForm);
+  const [productFormMediaFiles, setProductFormMediaFiles] = useState([]);
+  const [productFormMediaPreviews, setProductFormMediaPreviews] = useState([]);
 
-  const categories = [
-    "Beauty & Skincare",
-    "Fashion",
-    "Jewellery",
-    "Toys & Kids",
-    "Everyday Essentials",
-  ];
 
-  const showNotification = (message) => {
-    setNotification(message);
+  const [showBulkPanel, setShowBulkPanel] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState("approved");
+  const [bulkStock, setBulkStock] = useState("");
 
-    window.setTimeout(() => {
-      setNotification("");
-    }, 3000);
-  };
 
-  const formatCurrency = (value) => {
-    return `₹${Number(value || 0).toLocaleString("en-IN")}`;
-  };
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [productToReject, setProductToReject] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
-  const calculateDiscount = (product) => {
-    const price = Number(product.price || 0);
-    const originalPrice = Number(product.originalPrice || 0);
 
-    if (!price || !originalPrice || originalPrice <= price) {
-      return 0;
-    }
+  const [showVariantsModal, setShowVariantsModal] = useState(false);
+  const [variantsProduct, setVariantsProduct] = useState(null);
+  const [variants, setVariants] = useState([]);
 
-    return Math.round(((originalPrice - price) / originalPrice) * 100);
-  };
 
-  const visibleProducts = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categoryProduct, setCategoryProduct] = useState(null);
+  const [categoryForm, setCategoryForm] = useState({
+    category: "",
+    subcategory: "",
+  });
 
-    const filtered = products.filter((product) => {
-      const matchesSearch =
-        !query ||
-        product.name.toLowerCase().includes(query) ||
-        product.id.toLowerCase().includes(query) ||
-        product.category.toLowerCase().includes(query);
 
-      const matchesCategory =
-        selectedCategory === "All Categories" ||
-        product.category === selectedCategory;
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [mediaProduct, setMediaProduct] = useState(null);
+  const [mediaFiles, setMediaFiles] = useState([]);
+  const [mediaPreviews, setMediaPreviews] = useState([]);
 
-      const matchesStatus =
-        selectedStatus === "All Statuses" ||
-        product.status === selectedStatus;
 
-      return matchesSearch && matchesCategory && matchesStatus;
-    });
-
-    return [...filtered].sort((firstProduct, secondProduct) => {
-      if (sortBy === "price-low") {
-        return Number(firstProduct.price) - Number(secondProduct.price);
-      }
-
-      if (sortBy === "price-high") {
-        return Number(secondProduct.price) - Number(firstProduct.price);
-      }
-
-      if (sortBy === "stock-low") {
-        return Number(firstProduct.stock) - Number(secondProduct.stock);
-      }
-
-      if (sortBy === "name") {
-        return firstProduct.name.localeCompare(secondProduct.name);
-      }
-
-      return (
-        new Date(secondProduct.createdAt).getTime() -
-        new Date(firstProduct.createdAt).getTime()
-      );
-    });
-  }, [products, searchText, selectedCategory, selectedStatus, sortBy]);
-
-  const totalStock = products.reduce(
-    (total, product) => total + Number(product.stock || 0),
-    0
+  const filters = useMemo(
+    () => ({
+      search: debouncedSearch,
+      status: statusFilter,
+    }),
+    [debouncedSearch, statusFilter]
   );
 
-  const lowStockCount = products.filter(
-    (product) =>
-      product.status === "Low Stock" ||
-      (Number(product.stock) > 0 && Number(product.stock) <= 10)
-  ).length;
 
-  const outOfStockCount = products.filter(
-    (product) => Number(product.stock) === 0 || product.status === "Out of Stock"
-  ).length;
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 400);
 
-  const activeProductsCount = products.filter(
-    (product) => product.status === "Active"
-  ).length;
 
-  const handleOpenCreate = () => {
-    setEditingProduct(null);
-    setFormData(emptyProduct);
-    setIsFormOpen(true);
+    return () => clearTimeout(timeoutId);
+  }, [search]);
+
+
+  useEffect(() => {
+    loadProducts();
+  }, [page, filters.search, filters.status]);
+
+
+  const clearMessages = () => {
+    setError("");
+    setSuccess("");
   };
 
-  const handleOpenEdit = (product) => {
+
+  const getItems = (response) => {
+    if (Array.isArray(response)) {
+      return response;
+    }
+
+
+    if (Array.isArray(response?.items)) {
+      return response.items;
+    }
+
+
+    if (Array.isArray(response?.data)) {
+      return response.data;
+    }
+
+
+    return [];
+  };
+
+
+  const formatAmount = (value) => {
+    const amount = Number(value);
+
+
+    if (Number.isNaN(amount)) {
+      return "₹0";
+    }
+
+
+    return `₹${amount.toLocaleString("en-IN")}`;
+  };
+
+
+  const formatNumber = (value) => {
+    const number = Number(value);
+
+
+    if (Number.isNaN(number)) {
+      return "0";
+    }
+
+
+    return number.toLocaleString("en-IN");
+  };
+
+
+  const getStatusClass = (status) => {
+    const normalized = String(status || "").toLowerCase();
+
+
+    if (
+      normalized === "published" ||
+      normalized === "approved" ||
+      normalized === "active"
+    ) {
+      return "bg-green-100 text-green-700";
+    }
+
+
+    if (
+      normalized === "rejected" ||
+      normalized === "unpublished" ||
+      normalized === "disabled"
+    ) {
+      return "bg-red-100 text-red-700";
+    }
+
+
+    if (normalized === "pending" || normalized === "draft") {
+      return "bg-yellow-100 text-yellow-800";
+    }
+
+
+    return "bg-gray-100 text-gray-700";
+  };
+
+
+  const writeAuditLog = async (action, resourceId, details) => {
+    try {
+      await logAuditEvent({
+        action,
+        details: details || "",
+        resourceType: "product",
+        resourceId: resourceId || "",
+      });
+    } catch {
+      // Main product action should not fail only because audit logging fails.
+    }
+  };
+
+
+  const loadProducts = async () => {
+    setLoadingProducts(true);
+    setError("");
+
+
+    try {
+      const response = await fetchProducts({
+        page,
+        limit: PAGE_SIZE,
+        ...filters,
+      });
+
+
+      const items = getItems(response);
+
+
+      const receivedTotalPages = Number(
+        response?.totalPages || response?.pagination?.totalPages || 1
+      );
+
+
+      const receivedTotal = Number(
+        response?.total || response?.pagination?.total || items.length
+      );
+
+
+      setProducts(items);
+      setTotalPages(Math.max(1, receivedTotalPages));
+      setTotalProducts(receivedTotal);
+    } catch (err) {
+      setProducts([]);
+      setError(
+        err?.message ||
+          "⚠️ Products load नहीं हो पाए। कृपया फिर से कोशिश करें।"
+      );
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+
+  const refreshProducts = async () => {
+    clearMessages();
+    await loadProducts();
+    setSuccess("✅ Product data refresh हो गया।");
+  };
+
+
+  const openProductDetail = async (product) => {
+    clearMessages();
+    setActionLoading(`detail-${product.id}`);
+
+
+    try {
+      const [detailResult, performanceResult] = await Promise.allSettled([
+        fetchProductDetails({ id: product.id }),
+        fetchProductPerformance({ id: product.id }),
+      ]);
+
+
+      const detail =
+        detailResult.status === "fulfilled"
+          ? detailResult.value
+          : product;
+
+
+      const performance =
+        performanceResult.status === "fulfilled"
+          ? performanceResult.value || {}
+          : detail?.performance || {};
+
+
+      setSelectedProduct({
+        ...product,
+        ...(detail || {}),
+        images: Array.isArray(detail?.images) ? detail.images : [],
+        videos: Array.isArray(detail?.videos) ? detail.videos : [],
+        variants: Array.isArray(detail?.variants) ? detail.variants : [],
+        performance,
+      });
+
+
+      if (detailResult.status === "rejected") {
+        setError(
+          "⚠️ पूरी product details load नहीं हो पाईं। उपलब्ध जानकारी दिखाई जा रही है।"
+        );
+      }
+    } catch (err) {
+      setSelectedProduct({
+        ...product,
+        images: [],
+        videos: [],
+        variants: [],
+        performance: {},
+      });
+
+
+      setError(
+        err?.message ||
+          "⚠️ Product details load नहीं हो पाए। कृपया फिर से कोशिश करें।"
+      );
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
+  const closeProductDetail = () => {
+    setSelectedProduct(null);
+  };
+
+
+  const openCreateForm = () => {
+    clearMessages();
+    setEditingProduct(null);
+    setProductForm(emptyProductForm);
+    setProductFormMediaFiles([]);
+    setProductFormMediaPreviews([]);
+    setShowProductForm(true);
+  };
+
+
+  const openEditForm = (product) => {
+    clearMessages();
+
+
     setEditingProduct(product);
-    setFormData({
-      ...product,
-      price: String(product.price),
-      originalPrice: String(product.originalPrice),
-      stock: String(product.stock),
+    setProductForm({
+      name: product.name || "",
+      description: product.description || "",
+      sku: product.sku || "",
+      category: product.category || "",
+      subcategory: product.subcategory || "",
+      price:
+        product.price === undefined || product.price === null
+          ? ""
+          : String(product.price),
+      discountPrice:
+        product.discountPrice === undefined || product.discountPrice === null
+          ? ""
+          : String(product.discountPrice),
+      stock:
+        product.stock === undefined || product.stock === null
+          ? ""
+          : String(product.stock),
+      vendor: product.vendor || "",
+      status: product.status || "draft",
     });
-    setIsFormOpen(true);
+    setProductFormMediaFiles([]);
+    setProductFormMediaPreviews([]);
+
+
+    setShowProductForm(true);
   };
 
-  const handleCloseForm = () => {
-    setIsFormOpen(false);
+
+  const closeProductForm = () => {
+    setShowProductForm(false);
     setEditingProduct(null);
-    setFormData(emptyProduct);
+    setProductForm(emptyProductForm);
+    setProductFormMediaFiles([]);
+    setProductFormMediaPreviews([]);
   };
 
-  const handleFormChange = (event) => {
-    const { name, value, type, checked } = event.target;
 
-    setFormData((previousData) => ({
-      ...previousData,
-      [name]: type === "checkbox" ? checked : value,
+  const handleProductFormChange = (field, value) => {
+    setProductForm((currentForm) => ({
+      ...currentForm,
+      [field]: value,
     }));
   };
 
-  const handleSaveProduct = (event) => {
-    event.preventDefault();
 
-    const productName = formData.name.trim();
-    const price = Number(formData.price);
-    const originalPrice = Number(formData.originalPrice || formData.price);
-    const stock = Number(formData.stock);
+  const handleProductFormMediaChange = (event) => {
+    const files = Array.from(event.target.files || []);
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
 
-    if (!productName) {
-      showNotification("Please enter a product name.");
+
+    setProductFormMediaFiles(imageFiles);
+
+
+    const previews = imageFiles.map((file) => URL.createObjectURL(file));
+    setProductFormMediaPreviews(previews);
+  };
+
+
+  const clearProductFormMedia = () => {
+    setProductFormMediaFiles([]);
+    setProductFormMediaPreviews([]);
+  };
+
+
+  const saveProduct = async () => {
+    clearMessages();
+
+
+    if (!productForm.name.trim()) {
+      setError("⚠️ Product name जरूरी है।");
       return;
     }
 
-    if (Number.isNaN(price) || price <= 0) {
-      showNotification("Please enter a valid selling price.");
+
+    if (!productForm.sku.trim()) {
+      setError("⚠️ Product SKU जरूरी है।");
       return;
     }
+
+
+    if (!productForm.category.trim()) {
+      setError("⚠️ Product category जरूरी है।");
+      return;
+    }
+
+
+    const price = Number(productForm.price);
+    const stock = Number(productForm.stock);
+    const discountPrice =
+      productForm.discountPrice === ""
+        ? null
+        : Number(productForm.discountPrice);
+
+
+    if (Number.isNaN(price) || price < 0) {
+      setError("⚠️ Product price 0 या उससे ज्यादा होना चाहिए।");
+      return;
+    }
+
 
     if (Number.isNaN(stock) || stock < 0) {
-      showNotification("Please enter a valid stock quantity.");
+      setError("⚠️ Product stock 0 या उससे ज्यादा होना चाहिए।");
       return;
     }
 
-    const updatedStatus =
-      stock === 0
-        ? "Out of Stock"
-        : stock <= 10 && formData.status === "Active"
-          ? "Low Stock"
-          : formData.status;
-
-    const productPayload = {
-      ...formData,
-      id: editingProduct
-        ? editingProduct.id
-        : `WJ-${String(Date.now()).slice(-6)}`,
-      name: productName,
-      price,
-      originalPrice: originalPrice >= price ? originalPrice : price,
-      stock,
-      status: updatedStatus,
-      description: formData.description.trim(),
-      createdAt: editingProduct
-        ? editingProduct.createdAt
-        : new Date().toISOString().slice(0, 10),
-    };
-
-    if (editingProduct) {
-      setProducts((previousProducts) =>
-        previousProducts.map((product) =>
-          product.id === editingProduct.id ? productPayload : product
-        )
-      );
-      showNotification(`${productName} has been updated.`);
-    } else {
-      setProducts((previousProducts) => [productPayload, ...previousProducts]);
-      showNotification(`${productName} has been added.`);
-    }
-
-    handleCloseForm();
-  };
-
-  const handleDeleteProduct = (productId) => {
-    const product = products.find((item) => item.id === productId);
 
     if (
-      typeof window !== "undefined" &&
-      !window.confirm(`Delete "${product?.name || "this product"}"?`)
+      discountPrice !== null &&
+      (Number.isNaN(discountPrice) || discountPrice < 0)
     ) {
+      setError("⚠️ Discount price सही value में डालें।");
       return;
     }
 
-    setProducts((previousProducts) =>
-      previousProducts.filter((product) => product.id !== productId)
-    );
-    setSelectedIds((previousIds) =>
-      previousIds.filter((selectedId) => selectedId !== productId)
-    );
-    showNotification("Product deleted successfully.");
-  };
 
-  const handleDuplicateProduct = (product) => {
-    const duplicatedProduct = {
-      ...product,
-      id: `WJ-${String(Date.now()).slice(-6)}`,
-      name: `${product.name} Copy`,
-      status: "Draft",
-      createdAt: new Date().toISOString().slice(0, 10),
+    const payload = {
+      name: productForm.name.trim(),
+      description: productForm.description.trim(),
+      sku: productForm.sku.trim(),
+      category: productForm.category.trim(),
+      subcategory: productForm.subcategory.trim(),
+      price,
+      stock,
+      vendor: productForm.vendor.trim(),
+      status: productForm.status,
+      ...(discountPrice !== null ? { discountPrice } : {}),
     };
 
-    setProducts((previousProducts) => [duplicatedProduct, ...previousProducts]);
-    showNotification(`${product.name} has been duplicated as a draft.`);
-  };
 
-  const toggleSelectedProduct = (productId) => {
-    setSelectedIds((previousIds) =>
-      previousIds.includes(productId)
-        ? previousIds.filter((id) => id !== productId)
-        : [...previousIds, productId]
-    );
-  };
+    setActionLoading(editingProduct ? "update-product" : "create-product");
 
-  const toggleSelectAllVisible = () => {
-    const visibleIds = visibleProducts.map((product) => product.id);
-    const allVisibleSelected =
-      visibleIds.length > 0 &&
-      visibleIds.every((productId) => selectedIds.includes(productId));
 
-    if (allVisibleSelected) {
-      setSelectedIds((previousIds) =>
-        previousIds.filter((productId) => !visibleIds.includes(productId))
+    try {
+      let response;
+
+
+      if (editingProduct?.id) {
+        response = await updateProduct({
+          id: editingProduct.id,
+          ...payload,
+        });
+
+
+        await writeAuditLog(
+          "UPDATE_PRODUCT",
+          editingProduct.id,
+          `Updated product: ${payload.name}`
+        );
+
+
+        setSuccess(
+          response?.message || "✅ Product successfully update हो गया।"
+        );
+      } else {
+        response = await createProduct(payload);
+
+
+        await writeAuditLog(
+          "CREATE_PRODUCT",
+          response?.id || response?.productId || payload.sku,
+          `Created product: ${payload.name}`
+        );
+
+
+        setSuccess(
+          response?.message || "✅ Product successfully create हो गया।"
+        );
+      }
+
+
+      const productId =
+        editingProduct?.id ||
+        response?.id ||
+        response?.productId ||
+        response?.data?.id;
+
+
+      if (productId && productFormMediaFiles.length > 0) {
+        try {
+          await uploadProductMedia({
+            id: productId,
+            files: productFormMediaFiles,
+          });
+
+
+          await writeAuditLog(
+            "UPLOAD_PRODUCT_MEDIA",
+            productId,
+            `Uploaded ${productFormMediaFiles.length} image(s) while saving product`
+          );
+
+
+          setSuccess(
+            (response?.message ||
+              `✅ Product successfully ${
+                editingProduct ? "update" : "create"
+              } हो गया।`) + " Photo भी upload हो गई।"
+          );
+        } catch (mediaError) {
+          setError(
+            mediaError?.message ||
+              "⚠️ Product save हो गया, लेकिन photo upload नहीं हो पाई।"
+          );
+        }
+      }
+
+
+      closeProductForm();
+      await loadProducts();
+    } catch (err) {
+      setError(
+        err?.message ||
+          `⚠️ Product ${
+            editingProduct ? "update" : "create"
+          } नहीं हो पाया। कृपया फिर से कोशिश करें।`
       );
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
+  const handleDeleteProduct = async (product) => {
+    clearMessages();
+    setActionLoading(`delete-${product.id}`);
+
+
+    try {
+      const response = await deleteProduct({ id: product.id });
+
+
+      await writeAuditLog(
+        "DELETE_PRODUCT",
+        product.id,
+        `Deleted product: ${product.name || product.id}`
+      );
+
+
+      setSuccess(response?.message || "✅ Product delete हो गया।");
+
+
+      setSelectedIds((currentIds) =>
+        currentIds.filter((id) => id !== product.id)
+      );
+
+
+      if (selectedProduct?.id === product.id) {
+        closeProductDetail();
+      }
+
+
+      await loadProducts();
+    } catch (err) {
+      setError(
+        err?.message ||
+          "⚠️ Product delete नहीं हो पाया। कृपया फिर से कोशिश करें।"
+      );
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
+  const handleProductAction = async (product, action) => {
+    clearMessages();
+
+
+    const actionFunctions = {
+      publish: publishProduct,
+      unpublish: unpublishProduct,
+      approve: approveProduct,
+    };
+
+
+    const nextStatus = {
+      publish: "published",
+      unpublish: "unpublished",
+      approve: "approved",
+    };
+
+
+    const requestFunction = actionFunctions[action];
+
+
+    if (!requestFunction) {
+      setError("⚠️ Invalid product action.");
       return;
     }
 
-    setSelectedIds((previousIds) => [
-      ...new Set([...previousIds, ...visibleIds]),
+
+    setActionLoading(`${action}-${product.id}`);
+
+
+    try {
+      const response = await requestFunction({ id: product.id });
+
+
+      await writeAuditLog(
+        `${action.toUpperCase()}_PRODUCT`,
+        product.id,
+        `${action.toUpperCase()} product: ${product.name || product.id}`
+      );
+
+
+      setSuccess(
+        response?.message ||
+          `✅ Product ${
+            action === "unpublish" ? "unpublish" : action
+          } हो गया।`
+      );
+
+
+      if (selectedProduct?.id === product.id) {
+        setSelectedProduct((currentProduct) => ({
+          ...currentProduct,
+          status: nextStatus[action],
+        }));
+      }
+
+
+      await loadProducts();
+    } catch (err) {
+      setError(
+        err?.message ||
+          `⚠️ Product ${
+            action === "unpublish" ? "unpublish" : action
+          } नहीं हो पाया। कृपया फिर से कोशिश करें।`
+      );
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
+  const openRejectModal = (product) => {
+    clearMessages();
+    setProductToReject(product);
+    setRejectionReason("");
+    setShowRejectModal(true);
+  };
+
+
+  const closeRejectModal = () => {
+    setProductToReject(null);
+    setRejectionReason("");
+    setShowRejectModal(false);
+  };
+
+
+  const handleRejectProduct = async () => {
+    if (!productToReject?.id) {
+      return;
+    }
+
+
+    const reason = rejectionReason.trim();
+
+
+    if (!reason) {
+      setError("⚠️ Product reject करने के लिए reason जरूरी है।");
+      return;
+    }
+
+
+    clearMessages();
+    setActionLoading(`reject-${productToReject.id}`);
+
+
+    try {
+      const response = await rejectProduct({
+        id: productToReject.id,
+        reason,
+      });
+
+
+      await writeAuditLog(
+        "REJECT_PRODUCT",
+        productToReject.id,
+        `Rejected product: ${
+          productToReject.name || productToReject.id
+        }. Reason: ${reason}`
+      );
+
+
+      setSuccess(response?.message || "✅ Product reject हो गया।");
+
+
+      if (selectedProduct?.id === productToReject.id) {
+        setSelectedProduct((currentProduct) => ({
+          ...currentProduct,
+          status: "rejected",
+        }));
+      }
+
+
+      closeRejectModal();
+      await loadProducts();
+    } catch (err) {
+      setError(
+        err?.message ||
+          "⚠️ Product reject नहीं हो पाया। कृपया फिर से कोशिश करें।"
+      );
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
+  const openVariantsModal = (product) => {
+    clearMessages();
+
+
+    setVariantsProduct(product);
+    setVariants(
+      Array.isArray(product.variants) && product.variants.length > 0
+        ? product.variants.map((variant) => ({
+            id: variant.id || `variant-${Date.now()}`,
+            name: variant.name || "",
+            sku: variant.sku || "",
+            stock:
+              variant.stock === undefined || variant.stock === null
+                ? ""
+                : String(variant.stock),
+            price:
+              variant.price === undefined || variant.price === null
+                ? ""
+                : String(variant.price),
+            color: variant.color || "",
+            size: variant.size || "",
+          }))
+        : [
+            {
+              id: `variant-${Date.now()}`,
+              name: "",
+              sku: "",
+              stock: "",
+              price: "",
+              color: "",
+              size: "",
+            },
+          ]
+    );
+
+
+    setShowVariantsModal(true);
+  };
+
+
+  const closeVariantsModal = () => {
+    setVariantsProduct(null);
+    setVariants([]);
+    setShowVariantsModal(false);
+  };
+
+
+  const addVariantRow = () => {
+    setVariants((currentVariants) => [
+      ...currentVariants,
+      {
+        id: `variant-${Date.now()}-${currentVariants.length}`,
+        name: "",
+        sku: "",
+        stock: "",
+        price: "",
+        color: "",
+        size: "",
+      },
     ]);
   };
 
-  const handleBulkStatusUpdate = (status) => {
-    if (selectedIds.length === 0) {
-      showNotification("Select at least one product first.");
-      return;
-    }
 
-    setProducts((previousProducts) =>
-      previousProducts.map((product) =>
-        selectedIds.includes(product.id) ? { ...product, status } : product
+  const updateVariantField = (index, field, value) => {
+    setVariants((currentVariants) =>
+      currentVariants.map((variant, variantIndex) =>
+        variantIndex === index
+          ? { ...variant, [field]: value }
+          : variant
       )
     );
-
-    showNotification(
-      `${selectedIds.length} product${
-        selectedIds.length === 1 ? "" : "s"
-      } updated to ${status}.`
-    );
-    setSelectedIds([]);
   };
 
-  const handleBulkDelete = () => {
+
+  const removeVariantRow = (index) => {
+    setVariants((currentVariants) =>
+      currentVariants.filter((_, variantIndex) => variantIndex !== index)
+    );
+  };
+
+
+  const saveVariants = async () => {
+    if (!variantsProduct?.id) {
+      return;
+    }
+
+
+    const cleanedVariants = variants
+      .map((variant) => ({
+        id: variant.id,
+        name: variant.name.trim(),
+        sku: variant.sku.trim(),
+        stock: Number(variant.stock),
+        price: Number(variant.price),
+        color: variant.color.trim(),
+        size: variant.size.trim(),
+      }))
+      .filter(
+        (variant) =>
+          variant.name ||
+          variant.sku ||
+          variant.color ||
+          variant.size ||
+          variant.stock ||
+          variant.price
+      );
+
+
+    const hasInvalidVariant = cleanedVariants.some(
+      (variant) =>
+        !variant.name ||
+        !variant.sku ||
+        Number.isNaN(variant.stock) ||
+        variant.stock < 0 ||
+        Number.isNaN(variant.price) ||
+        variant.price < 0
+    );
+
+
+    if (hasInvalidVariant) {
+      setError(
+        "⚠️ हर variant में name, SKU, valid stock और valid price जरूरी है।"
+      );
+      return;
+    }
+
+
+    clearMessages();
+    setActionLoading(`variants-${variantsProduct.id}`);
+
+
+    try {
+      const response = await updateProductVariants({
+        id: variantsProduct.id,
+        variants: cleanedVariants,
+      });
+
+
+      await writeAuditLog(
+        "UPDATE_PRODUCT_VARIANTS",
+        variantsProduct.id,
+        `Updated ${cleanedVariants.length} product variants`
+      );
+
+
+      setSuccess(response?.message || "✅ Product variants update हो गए।");
+
+
+      if (selectedProduct?.id === variantsProduct.id) {
+        setSelectedProduct((currentProduct) => ({
+          ...currentProduct,
+          variants: cleanedVariants,
+        }));
+      }
+
+
+      closeVariantsModal();
+      await loadProducts();
+    } catch (err) {
+      setError(
+        err?.message ||
+          "⚠️ Product variants update नहीं हो पाए। कृपया फिर से कोशिश करें।"
+      );
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
+  const openCategoryModal = (product) => {
+    clearMessages();
+
+
+    setCategoryProduct(product);
+    setCategoryForm({
+      category: product.category || "",
+      subcategory: product.subcategory || "",
+    });
+
+
+    setShowCategoryModal(true);
+  };
+
+
+  const closeCategoryModal = () => {
+    setCategoryProduct(null);
+    setCategoryForm({
+      category: "",
+      subcategory: "",
+    });
+    setShowCategoryModal(false);
+  };
+
+
+  const saveCategories = async () => {
+    const category = categoryForm.category.trim();
+    const subcategory = categoryForm.subcategory.trim();
+
+
+    if (!categoryProduct?.id || !category) {
+      setError("⚠️ Main category जरूरी है।");
+      return;
+    }
+
+
+    clearMessages();
+    setActionLoading(`category-${categoryProduct.id}`);
+
+
+    try {
+      const response = await updateProductCategories({
+        id: categoryProduct.id,
+        category,
+        ...(subcategory ? { subcategory } : {}),
+      });
+
+
+      await writeAuditLog(
+        "UPDATE_PRODUCT_CATEGORIES",
+        categoryProduct.id,
+        `Updated category to ${category}${
+          subcategory ? ` > ${subcategory}` : ""
+        }`
+      );
+
+
+      setSuccess(response?.message || "✅ Product categories update हो गईं।");
+
+
+      if (selectedProduct?.id === categoryProduct.id) {
+        setSelectedProduct((currentProduct) => ({
+          ...currentProduct,
+          category,
+          subcategory,
+        }));
+      }
+
+
+      closeCategoryModal();
+      await loadProducts();
+    } catch (err) {
+      setError(
+        err?.message ||
+          "⚠️ Product categories update नहीं हो पाईं।"
+      );
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
+  const openMediaModal = (product) => {
+    clearMessages();
+    setMediaProduct(product);
+    setMediaFiles([]);
+    setMediaPreviews([]);
+    setShowMediaModal(true);
+  };
+
+
+  const closeMediaModal = () => {
+    setMediaProduct(null);
+    setMediaFiles([]);
+    setMediaPreviews([]);
+    setShowMediaModal(false);
+  };
+
+
+  const handleMediaFileChange = (event) => {
+    const files = Array.from(event.target.files || []);
+
+
+    setMediaFiles(files);
+
+
+    const previews = files
+      .filter((file) => file.type.startsWith("image/"))
+      .map((file) => URL.createObjectURL(file));
+
+
+    setMediaPreviews(previews);
+  };
+
+
+  const saveMedia = async () => {
+    if (!mediaProduct?.id) {
+      return;
+    }
+
+
+    if (mediaFiles.length === 0) {
+      setError("⚠️ Upload करने के लिए कम से कम एक media file चुनें।");
+      return;
+    }
+
+
+    clearMessages();
+    setActionLoading(`media-${mediaProduct.id}`);
+
+
+    try {
+      const response = await uploadProductMedia({
+        id: mediaProduct.id,
+        files: mediaFiles,
+      });
+
+
+      await writeAuditLog(
+        "UPLOAD_PRODUCT_MEDIA",
+        mediaProduct.id,
+        `Uploaded ${mediaFiles.length} media file(s)`
+      );
+
+
+      setSuccess(response?.message || "✅ Product media upload हो गया।");
+
+
+      closeMediaModal();
+
+
+      if (selectedProduct?.id === mediaProduct.id) {
+        await openProductDetail(selectedProduct);
+      }
+
+
+      await loadProducts();
+    } catch (err) {
+      setError(
+        err?.message ||
+          "⚠️ Product media upload नहीं हो पाया। कृपया फिर से कोशिश करें।"
+      );
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
+  const toggleProductSelection = (productId) => {
+    setSelectedIds((currentIds) =>
+      currentIds.includes(productId)
+        ? currentIds.filter((id) => id !== productId)
+        : [...currentIds, productId]
+    );
+  };
+
+
+  const toggleAllProducts = () => {
+    const currentPageIds = products.map((product) => product.id).filter(Boolean);
+
+
+    const allSelected =
+      currentPageIds.length > 0 &&
+      currentPageIds.every((id) => selectedIds.includes(id));
+
+
+    setSelectedIds((currentIds) => {
+      if (allSelected) {
+        return currentIds.filter((id) => !currentPageIds.includes(id));
+      }
+
+
+      return Array.from(new Set([...currentIds, ...currentPageIds]));
+    });
+  };
+
+
+  const handleBulkUpdate = async () => {
+    clearMessages();
+
+
     if (selectedIds.length === 0) {
-      showNotification("Select at least one product first.");
+      setError("⚠️ Bulk update के लिए कम से कम एक product select करें।");
       return;
     }
 
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        `Delete ${selectedIds.length} selected product${
-          selectedIds.length === 1 ? "" : "s"
-        }?`
-      )
-    ) {
-      return;
-    }
 
-    setProducts((previousProducts) =>
-      previousProducts.filter((product) => !selectedIds.includes(product.id))
-    );
-
-    showNotification(
-      `${selectedIds.length} selected product${
-        selectedIds.length === 1 ? "" : "s"
-      } deleted.`
-    );
-    setSelectedIds([]);
-  };
-
-  const getStatusClass = (status) => {
-    const statusStyles = {
-      Active: "bg-emerald-100 text-emerald-700",
-      Draft: "bg-slate-200 text-slate-700",
-      "Low Stock": "bg-amber-100 text-amber-700",
-      "Out of Stock": "bg-rose-100 text-rose-700",
+    const update = {
+      status: bulkStatus,
     };
 
-    return statusStyles[status] || "bg-slate-100 text-slate-700";
+
+    if (bulkStock !== "") {
+      const parsedStock = Number(bulkStock);
+
+
+      if (Number.isNaN(parsedStock) || parsedStock < 0) {
+        setError("⚠️ Bulk stock 0 या उससे ज्यादा होना चाहिए।");
+        return;
+      }
+
+
+      update.stock = parsedStock;
+    }
+
+
+    setActionLoading("bulk-update");
+
+
+    try {
+      const response = await bulkUpdateProducts({
+        ids: selectedIds,
+        update,
+      });
+
+
+      await writeAuditLog(
+        "BULK_UPDATE_PRODUCTS",
+        selectedIds.join(","),
+        `Updated product status to ${bulkStatus}${
+          bulkStock !== "" ? ` and stock to ${bulkStock}` : ""
+        }`
+      );
+
+
+      setSuccess(
+        response?.message ||
+          `✅ ${selectedIds.length} products bulk update हो गए।`
+      );
+
+
+      setSelectedIds([]);
+      setBulkStock("");
+      setShowBulkPanel(false);
+
+
+      await loadProducts();
+    } catch (err) {
+      setError(
+        err?.message ||
+          "⚠️ Bulk product update नहीं हो पाया। कृपया फिर से कोशिश करें।"
+      );
+    } finally {
+      setActionLoading("");
+    }
   };
 
-  const allVisibleSelected =
-    visibleProducts.length > 0 &&
-    visibleProducts.every((product) => selectedIds.includes(product.id));
+
+  const downloadExportResponse = (response, fileName) => {
+    if (!response) {
+      return;
+    }
+
+
+    if (typeof response === "string") {
+      window.open(response, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+
+    if (response?.url) {
+      window.open(response.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+
+    if (response instanceof Blob) {
+      const fileUrl = window.URL.createObjectURL(response);
+      const link = document.createElement("a");
+
+
+      link.href = fileUrl;
+      link.download = fileName;
+
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+
+      window.URL.revokeObjectURL(fileUrl);
+    }
+  };
+
+
+  const handleExport = async (format) => {
+    clearMessages();
+    setActionLoading(`export-${format}`);
+
+
+    try {
+      const exportFunctions = {
+        csv: exportProductsCSV,
+        excel: exportProductsExcel,
+        pdf: exportProductsPDF,
+      };
+
+
+      const exportFunction = exportFunctions[format];
+
+
+      if (!exportFunction) {
+        throw new Error("Invalid export format.");
+      }
+
+
+      const response = await exportFunction({
+        search: debouncedSearch,
+        status: statusFilter,
+        ids: selectedIds,
+      });
+
+
+      downloadExportResponse(response, `products-report.${format}`);
+
+
+      await writeAuditLog(
+        `EXPORT_PRODUCTS_${format.toUpperCase()}`,
+        "",
+        `Exported product report in ${format.toUpperCase()} format`
+      );
+
+
+      setSuccess(
+        `✅ Product report ${format.toUpperCase()} में export हो गई।`
+      );
+    } catch (err) {
+      setError(
+        err?.message ||
+          `⚠️ ${format.toUpperCase()} export नहीं हो पाया। कृपया फिर से कोशिश करें।`
+      );
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
+  const isAllSelected =
+    products.length > 0 &&
+    products.every((product) => selectedIds.includes(product.id));
+
+
+  const selectedProductStatus = String(
+    selectedProduct?.status || ""
+  ).toLowerCase();
+
+
+  const canApprove =
+    selectedProductStatus === "draft" ||
+    selectedProductStatus === "pending" ||
+    selectedProductStatus === "rejected";
+
+
+  const canPublish =
+    selectedProductStatus === "approved" ||
+    selectedProductStatus === "unpublished";
+
+
+  const canUnpublish = selectedProductStatus === "published";
+
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-800 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-950 via-indigo-800 to-purple-800 p-6 text-white shadow-xl sm:p-8">
-          <div className="absolute -right-12 -top-12 h-56 w-56 rounded-full bg-yellow-300/20 blur-3xl" />
-          <div className="absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-fuchsia-400/20 blur-3xl" />
+    <div className="product-manager px-4 py-6 sm:px-6 sm:py-10">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-indigo-900">
+            Super Admin Product Manager 📦
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Products, categories, variants, media, stock और publishing workflow manage करें।
+          </p>
+        </div>
 
-          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-yellow-400 text-xl font-black text-indigo-950 shadow-lg">
-                  ✦
-                </span>
 
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-300">
-                    Wish Jinny Admin
-                  </p>
-                  <h1 className="mt-1 text-2xl font-black sm:text-3xl">
-                    Product Manager
-                  </h1>
-                </div>
-              </div>
+        <button
+          type="button"
+          onClick={refreshProducts}
+          disabled={loadingProducts || Boolean(actionLoading)}
+          className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Refresh Products
+        </button>
+      </div>
 
-              <p className="mt-5 max-w-2xl text-sm leading-6 text-indigo-100 sm:text-base">
-                Create, organize and manage every magical product in your Wish
-                Jinny marketplace—from beauty and fashion to jewellery, toys
-                and everyday essentials.
-              </p>
-            </div>
+
+      {success && (
+        <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 font-medium text-green-700">
+          {success}
+        </div>
+      )}
+
+
+      {error && (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 font-medium text-red-700">
+          {error}
+        </div>
+      )}
+
+
+      <section className="mb-6 rounded-lg border bg-white p-4 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-indigo-900">
+          Filters & Actions
+        </h2>
+
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <input
+            type="text"
+            placeholder="Search product, SKU, category, vendor..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+          />
+
+
+          <select
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPage(1);
+            }}
+            className="w-full rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+          >
+            <option value="all">All Status</option>
+            <option value="draft">Draft</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="published">Published</option>
+            <option value="unpublished">Unpublished</option>
+            <option value="rejected">Rejected</option>
+          </select>
+
+
+          <button
+            type="button"
+            onClick={openCreateForm}
+            disabled={Boolean(actionLoading)}
+            className="rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Create Product
+          </button>
+
+
+          <button
+            type="button"
+            onClick={() => setShowBulkPanel((visible) => !visible)}
+            disabled={Boolean(actionLoading)}
+            className="rounded-md bg-yellow-500 px-4 py-2 text-indigo-950 hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Bulk Update ({selectedIds.length})
+          </button>
+
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleExport("csv")}
+              disabled={Boolean(actionLoading)}
+              className="flex-1 rounded-md bg-yellow-500 px-3 py-2 text-indigo-950 hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              CSV
+            </button>
+
 
             <button
               type="button"
-              onClick={handleOpenCreate}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 py-3 text-sm font-black text-indigo-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-yellow-300"
+              onClick={() => handleExport("excel")}
+              disabled={Boolean(actionLoading)}
+              className="flex-1 rounded-md bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <span className="text-lg leading-none">+</span>
-              Add New Product
+              Excel
+            </button>
+
+
+            <button
+              type="button"
+              onClick={() => handleExport("pdf")}
+              disabled={Boolean(actionLoading)}
+              className="flex-1 rounded-md bg-purple-600 px-3 py-2 text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              PDF
             </button>
           </div>
-        </section>
+        </div>
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">All Products</p>
-            <p className="mt-2 text-3xl font-black text-slate-900">
-              {products.length}
-            </p>
-            <p className="mt-2 text-xs font-semibold text-indigo-600">
-              Your complete catalogue
-            </p>
-          </article>
 
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">
-              Active Products
+        {showBulkPanel && (
+          <div className="mt-4 rounded-md bg-yellow-50 p-4">
+            <p className="mb-3 text-sm font-medium text-yellow-900">
+              Selected products: {selectedIds.length}
             </p>
-            <p className="mt-2 text-3xl font-black text-emerald-600">
-              {activeProductsCount}
-            </p>
-            <p className="mt-2 text-xs font-semibold text-emerald-600">
-              Live and visible to shoppers
-            </p>
-          </article>
 
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">Low Stock</p>
-            <p className="mt-2 text-3xl font-black text-amber-600">
-              {lowStockCount}
-            </p>
-            <p className="mt-2 text-xs font-semibold text-amber-600">
-              Products needing attention
-            </p>
-          </article>
 
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">
-              Out of Stock
-            </p>
-            <p className="mt-2 text-3xl font-black text-rose-600">
-              {outOfStockCount}
-            </p>
-            <p className="mt-2 text-xs font-semibold text-rose-600">
-              {totalStock.toLocaleString("en-IN")} total units in inventory
-            </p>
-          </article>
-        </section>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <select
+                value={bulkStatus}
+                onChange={(event) => setBulkStatus(event.target.value)}
+                className="rounded-md border px-3 py-2"
+              >
+                <option value="draft">Draft</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="published">Published</option>
+                <option value="unpublished">Unpublished</option>
+                <option value="rejected">Rejected</option>
+              </select>
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
-            <div className="relative">
-              <label htmlFor="product-search" className="sr-only">
-                Search products
-              </label>
+
               <input
-                id="product-search"
-                type="search"
-                value={searchText}
-                onChange={(event) => setSearchText(event.target.value)}
-                placeholder="Search by product name, category or product ID..."
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                type="number"
+                min="0"
+                placeholder="Optional stock quantity"
+                value={bulkStock}
+                onChange={(event) => setBulkStock(event.target.value)}
+                className="rounded-md border px-3 py-2"
               />
             </div>
 
-            <select
-              value={selectedCategory}
-              onChange={(event) => setSelectedCategory(event.target.value)}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-            >
-              <option>All Categories</option>
-              {categories.map((category) => (
-                <option key={category}>{category}</option>
-              ))}
-            </select>
 
-            <select
-              value={selectedStatus}
-              onChange={(event) => setSelectedStatus(event.target.value)}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-            >
-              <option>All Statuses</option>
-              <option>Active</option>
-              <option>Draft</option>
-              <option>Low Stock</option>
-              <option>Out of Stock</option>
-            </select>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleBulkUpdate}
+                disabled={selectedIds.length === 0 || Boolean(actionLoading)}
+                className="rounded-md bg-yellow-600 px-4 py-2 text-white hover:bg-yellow-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {actionLoading === "bulk-update"
+                  ? "Updating..."
+                  : "Apply Bulk Update"}
+              </button>
 
-            <select
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value)}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-            >
-              <option value="newest">Newest first</option>
-              <option value="name">Name A–Z</option>
-              <option value="price-low">Price: low to high</option>
-              <option value="price-high">Price: high to low</option>
-              <option value="stock-low">Stock: low to high</option>
-            </select>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedIds([]);
+                  setBulkStock("");
+                  setShowBulkPanel(false);
+                }}
+                className="rounded-md border px-4 py-2 text-gray-700 hover:bg-gray-50"
+              >
+                Clear Selection
+              </button>
+            </div>
           </div>
+        )}
+      </section>
 
-          <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-slate-500">
-              Showing{" "}
-              <span className="font-black text-slate-800">
-                {visibleProducts.length}
-              </span>{" "}
-              of {products.length} products
+
+      <section className="mb-6 rounded-lg border bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-indigo-900">
+              Product List
+            </h2>
+            <p className="text-sm text-gray-500">
+              Total matching products: {totalProducts}
             </p>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {selectedIds.length > 0 && (
-                <>
-                  <span className="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700">
-                    {selectedIds.length} selected
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => handleBulkStatusUpdate("Active")}
-                    className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50"
-                  >
-                    Set Active
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleBulkStatusUpdate("Draft")}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Set Draft
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleBulkDelete}
-                    className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
-                  >
-                    Delete Selected
-                  </button>
-                </>
-              )}
-
-              <div className="flex rounded-lg border border-slate-200 p-1">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("table")}
-                  className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${
-                    viewMode === "table"
-                      ? "bg-indigo-700 text-white"
-                      : "text-slate-500 hover:bg-slate-100"
-                  }`}
-                >
-                  Table
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grid")}
-                  className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${
-                    viewMode === "grid"
-                      ? "bg-indigo-700 text-white"
-                      : "text-slate-500 hover:bg-slate-100"
-                  }`}
-                >
-                  Grid
-                </button>
-              </div>
-            </div>
           </div>
-        </section>
 
-        {viewMode === "table" ? (
-          <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left">
-                <thead className="bg-slate-50">
-                  <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                    <th className="w-12 px-4 py-4">
-                      <input
-                        type="checkbox"
-                        checked={allVisibleSelected}
-                        onChange={toggleSelectAllVisible}
-                        aria-label="Select all visible products"
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-700 focus:ring-indigo-500"
-                      />
-                    </th>
-                    <th className="px-4 py-4 font-bold">Product</th>
-                    <th className="px-4 py-4 font-bold">Category</th>
-                    <th className="px-4 py-4 font-bold">Price</th>
-                    <th className="px-4 py-4 font-bold">Stock</th>
-                    <th className="px-4 py-4 font-bold">Status</th>
-                    <th className="px-4 py-4 text-right font-bold">Actions</th>
-                  </tr>
-                </thead>
 
-                <tbody>
-                  {visibleProducts.length > 0 ? (
-                    visibleProducts.map((product) => {
-                      const discount = calculateDiscount(product);
+          <span className="text-sm text-gray-500">
+            Page {page} of {totalPages}
+          </span>
+        </div>
 
-                      return (
-                        <tr
-                          key={product.id}
-                          className="border-b border-slate-100 text-sm transition hover:bg-indigo-50/40 last:border-0"
-                        >
-                          <td className="px-4 py-4">
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.includes(product.id)}
-                              onChange={() => toggleSelectedProduct(product.id)}
-                              aria-label={`Select ${product.name}`}
-                              className="h-4 w-4 rounded border-slate-300 text-indigo-700 focus:ring-indigo-500"
-                            />
-                          </td>
 
-                          <td className="px-4 py-4">
-                            <div className="flex items-center gap-3">
-                              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-100 via-purple-100 to-yellow-100 text-sm font-black text-indigo-700">
-                                {product.name.charAt(0)}
-                              </span>
-
-                              <div className="min-w-0">
-                                <p className="max-w-[220px] truncate font-black text-slate-800">
-                                  {product.name}
-                                </p>
-                                <p className="mt-1 text-xs font-medium text-slate-400">
-                                  {product.id}
-                                  {product.featured ? " · Featured" : ""}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="whitespace-nowrap px-4 py-4 font-semibold text-slate-600">
-                            {product.category}
-                          </td>
-
-                          <td className="whitespace-nowrap px-4 py-4">
-                            <p className="font-black text-indigo-700">
-                              {formatCurrency(product.price)}
-                            </p>
-                            {discount > 0 && (
-                              <p className="mt-1 text-xs font-semibold text-emerald-600">
-                                {discount}% off ·{" "}
-                                <span className="text-slate-400 line-through">
-                                  {formatCurrency(product.originalPrice)}
-                                </span>
-                              </p>
-                            )}
-                          </td>
-
-                          <td className="whitespace-nowrap px-4 py-4">
-                            <span
-                              className={`font-black ${
-                                Number(product.stock) === 0
-                                  ? "text-rose-600"
-                                  : Number(product.stock) <= 10
-                                    ? "text-amber-600"
-                                    : "text-slate-800"
-                              }`}
-                            >
-                              {product.stock}
-                            </span>
-                            <span className="ml-1 text-xs text-slate-400">
-                              units
-                            </span>
-                          </td>
-
-                          <td className="whitespace-nowrap px-4 py-4">
-                            <span
-                              className={`rounded-full px-3 py-1.5 text-xs font-bold ${getStatusClass(
-                                product.status
-                              )}`}
-                            >
-                              {product.status}
-                            </span>
-                          </td>
-
-                          <td className="whitespace-nowrap px-4 py-4 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEdit(product)}
-                                className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50"
-                              >
-                                Edit
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleDuplicateProduct(product)}
-                                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
-                              >
-                                Copy
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteProduct(product.id)}
-                                className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="7" className="px-6 py-14 text-center">
-                        <p className="text-lg font-black text-slate-800">
-                          No products found
-                        </p>
-                        <p className="mt-2 text-sm text-slate-500">
-                          Try changing your filters or add a magical new product.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={handleOpenCreate}
-                          className="mt-5 rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-800"
-                        >
-                          Add Product
-                        </button>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+        {loadingProducts && products.length === 0 ? (
+          <p className="py-8 text-center text-indigo-700">
+            ✨ Loading products...
+          </p>
+        ) : products.length === 0 ? (
+          <p className="py-8 text-center text-gray-600">
+            No products found.
+          </p>
         ) : (
-          <section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleProducts.length > 0 ? (
-              visibleProducts.map((product) => {
-                const discount = calculateDiscount(product);
+          <div className="overflow-x-auto">
+            <table className="min-w-[1300px] w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-gray-100 text-left text-gray-700">
+                  <th className="border px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={toggleAllProducts}
+                      aria-label="Select all products"
+                    />
+                  </th>
+                  <th className="border px-3 py-2">Product</th>
+                  <th className="border px-3 py-2">SKU</th>
+                  <th className="border px-3 py-2">Category</th>
+                  <th className="border px-3 py-2">Vendor</th>
+                  <th className="border px-3 py-2">Price</th>
+                  <th className="border px-3 py-2">Stock</th>
+                  <th className="border px-3 py-2">Status</th>
+                  <th className="border px-3 py-2">Actions</th>
+                </tr>
+              </thead>
 
-                return (
-                  <article
-                    key={product.id}
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-                  >
-                    <div className="relative flex h-36 items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-100 to-yellow-100">
-                      <span className="text-5xl font-black text-indigo-700/70">
-                        {product.name.charAt(0)}
-                      </span>
 
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(product.id)}
-                        onChange={() => toggleSelectedProduct(product.id)}
-                        aria-label={`Select ${product.name}`}
-                        className="absolute left-4 top-4 h-4 w-4 rounded border-slate-300 text-indigo-700 focus:ring-indigo-500"
-                      />
+              <tbody>
+                {products.map((product) => {
+                  const productStatus = String(
+                    product.status || ""
+                  ).toLowerCase();
 
-                      {product.featured && (
-                        <span className="absolute right-4 top-4 rounded-full bg-yellow-400 px-3 py-1 text-xs font-black text-indigo-950">
-                          Featured
-                        </span>
-                      )}
-                    </div>
 
-                    <div className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold uppercase tracking-wide text-purple-600">
-                            {product.category}
-                          </p>
-                          <h2 className="mt-1 truncate text-lg font-black text-slate-900">
-                            {product.name}
-                          </h2>
-                        </div>
+                  const rowCanApprove =
+                    productStatus === "draft" ||
+                    productStatus === "pending" ||
+                    productStatus === "rejected";
 
+
+                  const rowCanPublish =
+                    productStatus === "approved" ||
+                    productStatus === "unpublished";
+
+
+                  const rowCanUnpublish =
+                    productStatus === "published";
+
+
+                  return (
+                    <tr
+                      key={product.id}
+                      className="border-b hover:bg-gray-50"
+                    >
+                      <td className="border px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(product.id)}
+                          onChange={() => toggleProductSelection(product.id)}
+                          aria-label={`Select product ${product.id}`}
+                        />
+                      </td>
+
+
+                      <td className="border px-3 py-2">
+                        <p className="font-medium text-indigo-900">
+                          {product.name || "Unnamed Product"}
+                        </p>
+                        <p className="max-w-[260px] truncate text-xs text-gray-500">
+                          {product.description || ""}
+                        </p>
+                      </td>
+
+
+                      <td className="border px-3 py-2 font-mono text-xs">
+                        {product.sku || "—"}
+                      </td>
+
+
+                      <td className="border px-3 py-2">
+                        {product.category || "—"}
+                        {product.subcategory
+                          ? ` > ${product.subcategory}`
+                          : ""}
+                      </td>
+
+
+                      <td className="border px-3 py-2">
+                        {product.vendor || "—"}
+                      </td>
+
+
+                      <td className="border px-3 py-2">
+                        <p>{formatAmount(product.price)}</p>
+                        {product.discountPrice !== undefined &&
+                          product.discountPrice !== null && (
+                            <p className="text-xs text-green-600">
+                              Sale: {formatAmount(product.discountPrice)}
+                            </p>
+                          )}
+                      </td>
+
+
+                      <td className="border px-3 py-2">
                         <span
-                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${getStatusClass(
+                          className={
+                            Number(product.stock) <= 5
+                              ? "font-semibold text-red-600"
+                              : ""
+                          }
+                        >
+                          {formatNumber(product.stock)}
+                        </span>
+                      </td>
+
+
+                      <td className="border px-3 py-2">
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${getStatusClass(
                             product.status
                           )}`}
                         >
-                          {product.status}
+                          {product.status || "unknown"}
                         </span>
-                      </div>
+                      </td>
 
-                      <p className="mt-3 line-clamp-2 min-h-[40px] text-sm leading-5 text-slate-500">
-                        {product.description || "No description added yet."}
-                      </p>
 
-                      <div className="mt-4 flex items-end justify-between gap-3">
-                        <div>
-                          <p className="text-xl font-black text-indigo-700">
-                            {formatCurrency(product.price)}
-                          </p>
-                          {discount > 0 && (
-                            <p className="text-xs font-semibold text-emerald-600">
-                              {discount}% off
-                            </p>
-                          )}
+                      <td className="border px-3 py-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openProductDetail(product)}
+                            disabled={actionLoading === `detail-${product.id}`}
+                            className="text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {actionLoading === `detail-${product.id}`
+                              ? "Loading..."
+                              : "View"}
+                          </button>
+
+
+                          <button
+                            type="button"
+                            onClick={() => openEditForm(product)}
+                            disabled={Boolean(actionLoading)}
+                            className="text-indigo-600 hover:text-indigo-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Edit
+                          </button>
+
+
+                          <button
+                            type="button"
+                            onClick={() => openMediaModal(product)}
+                            disabled={Boolean(actionLoading)}
+                            className="font-medium text-gray-700 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Upload Media
+                          </button>
+
+
+                          <button
+                            type="button"
+                            onClick={() => handleProductAction(product, "approve")}
+                            disabled={!rowCanApprove || Boolean(actionLoading)}
+                            className="text-green-600 hover:text-green-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Approve
+                          </button>
+
+
+                          <button
+                            type="button"
+                            onClick={() => openRejectModal(product)}
+                            disabled={!rowCanApprove || Boolean(actionLoading)}
+                            className="text-pink-600 hover:text-pink-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Reject
+                          </button>
+
+
+                          <button
+                            type="button"
+                            onClick={() => handleProductAction(product, "publish")}
+                            disabled={!rowCanPublish || Boolean(actionLoading)}
+                            className="text-green-700 hover:text-green-900 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Publish
+                          </button>
+
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleProductAction(product, "unpublish")
+                            }
+                            disabled={!rowCanUnpublish || Boolean(actionLoading)}
+                            className="text-yellow-700 hover:text-yellow-900 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Unpublish
+                          </button>
+
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(product)}
+                            disabled={Boolean(actionLoading)}
+                            className="text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {actionLoading === `delete-${product.id}`
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
                         </div>
-
-                        <p className="text-right text-xs font-bold text-slate-500">
-                          {product.stock} units
-                          <br />
-                          <span className="font-medium text-slate-400">
-                            {product.id}
-                          </span>
-                        </p>
-                      </div>
-
-                      <div className="mt-5 grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(product)}
-                          className="rounded-lg border border-indigo-200 px-2 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50"
-                        >
-                          Edit
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDuplicateProduct(product)}
-                          className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
-                        >
-                          Copy
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="rounded-lg border border-rose-200 px-2 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })
-            ) : (
-              <div className="col-span-full rounded-2xl border border-dashed border-indigo-200 bg-indigo-50 p-12 text-center">
-                <p className="text-lg font-black text-indigo-950">
-                  No products match your filters.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchText("");
-                    setSelectedCategory("All Categories");
-                    setSelectedStatus("All Statuses");
-                  }}
-                  className="mt-4 rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-800"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            )}
-          </section>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
 
-        {isFormOpen && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="product-form-title"
-              className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
-            >
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-600">
-                    Wish Jinny Catalogue
-                  </p>
-                  <h2
-                    id="product-form-title"
-                    className="mt-1 text-xl font-black text-slate-900"
-                  >
-                    {editingProduct ? "Edit Product" : "Add New Product"}
-                  </h2>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={handleCloseForm}
-                  aria-label="Close product form"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-                >
-                  ×
-                </button>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() =>
+              setPage((currentPage) => Math.max(1, currentPage - 1))
+            }
+            disabled={page <= 1 || loadingProducts}
+            className="rounded-md border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            ← Previous
+          </button>
+
+
+          <span className="text-sm text-gray-600">
+            Page {page} / {totalPages}
+          </span>
+
+
+          <button
+            type="button"
+            onClick={() =>
+              setPage((currentPage) =>
+                Math.min(totalPages, currentPage + 1)
+              )
+            }
+            disabled={page >= totalPages || loadingProducts}
+            className="rounded-md border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next →
+          </button>
+        </div>
+      </section>
+
+
+      {selectedProduct && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Product details"
+        >
+          <button
+            type="button"
+            aria-label="Close product details"
+            onClick={closeProductDetail}
+            className="absolute inset-0 cursor-default"
+          />
+
+
+          <div className="relative z-10 h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-indigo-900">
+                  {selectedProduct.name || "Product Detail"}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  ID: {selectedProduct.id || "—"}
+                </p>
               </div>
 
-              <form onSubmit={handleSaveProduct} className="p-5 sm:p-6">
-                <div className="grid gap-5 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <label
-                      htmlFor="product-name"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Product Name
-                    </label>
-                    <input
-                      id="product-name"
-                      name="name"
-                      type="text"
-                      value={formData.name}
-                      onChange={handleFormChange}
-                      placeholder="Enter product name"
-                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                    />
-                  </div>
 
-                  <div>
-                    <label
-                      htmlFor="product-category"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Category
-                    </label>
-                    <select
-                      id="product-category"
-                      name="category"
-                      value={formData.category}
-                      onChange={handleFormChange}
-                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                    >
-                      {categories.map((category) => (
-                        <option key={category}>{category}</option>
-                      ))}
-                    </select>
-                  </div>
+              <button
+                type="button"
+                onClick={closeProductDetail}
+                className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
 
-                  <div>
-                    <label
-                      htmlFor="product-status"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Product Status
-                    </label>
-                    <select
-                      id="product-status"
-                      name="status"
-                      value={formData.status}
-                      onChange={handleFormChange}
-                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                    >
-                      <option>Active</option>
-                      <option>Draft</option>
-                      <option>Low Stock</option>
-                      <option>Out of Stock</option>
-                    </select>
-                  </div>
 
-                  <div>
-                    <label
-                      htmlFor="product-price"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Selling Price (₹)
-                    </label>
-                    <input
-                      id="product-price"
-                      name="price"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={formData.price}
-                      onChange={handleFormChange}
-                      placeholder="0"
-                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                    />
-                  </div>
+            <div className="mb-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => openEditForm(selectedProduct)}
+                disabled={Boolean(actionLoading)}
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Edit Product
+              </button>
 
-                  <div>
-                    <label
-                      htmlFor="product-original-price"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Original Price (₹)
-                    </label>
-                    <input
-                      id="product-original-price"
-                      name="originalPrice"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={formData.originalPrice}
-                      onChange={handleFormChange}
-                      placeholder="Optional"
-                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                    />
-                  </div>
 
-                  <div>
-                    <label
-                      htmlFor="product-stock"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Stock Quantity
-                    </label>
-                    <input
-                      id="product-stock"
-                      name="stock"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={formData.stock}
-                      onChange={handleFormChange}
-                      placeholder="0"
-                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                    />
-                  </div>
+              <button
+                type="button"
+                onClick={() => openCategoryModal(selectedProduct)}
+                disabled={Boolean(actionLoading)}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Categories
+              </button>
 
-                  <label className="flex items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-bold text-amber-800">
-                    <input
-                      name="featured"
-                      type="checkbox"
-                      checked={formData.featured}
-                      onChange={handleFormChange}
-                      className="h-4 w-4 rounded border-amber-300 text-indigo-700 focus:ring-indigo-500"
-                    />
-                    Feature this magical product
-                  </label>
 
-                  <div className="md:col-span-2">
-                    <label
-                      htmlFor="product-description"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Product Description
-                    </label>
-                    <textarea
-                      id="product-description"
-                      name="description"
-                      rows="4"
-                      value={formData.description}
-                      onChange={handleFormChange}
-                      placeholder="Write a clear, customer-friendly product description..."
-                      className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                    />
+              <button
+                type="button"
+                onClick={() => openVariantsModal(selectedProduct)}
+                disabled={Boolean(actionLoading)}
+                className="rounded-md bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Variants
+              </button>
+
+
+              <button
+                type="button"
+                onClick={() => openMediaModal(selectedProduct)}
+                disabled={Boolean(actionLoading)}
+                className="rounded-md bg-gray-700 px-3 py-2 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Upload Media
+              </button>
+
+
+              <button
+                type="button"
+                onClick={() => handleProductAction(selectedProduct, "approve")}
+                disabled={!canApprove || Boolean(actionLoading)}
+                className="rounded-md bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Approve
+              </button>
+
+
+              <button
+                type="button"
+                onClick={() => openRejectModal(selectedProduct)}
+                disabled={!canApprove || Boolean(actionLoading)}
+                className="rounded-md bg-pink-600 px-3 py-2 text-sm text-white hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Reject
+              </button>
+
+
+              <button
+                type="button"
+                onClick={() => handleProductAction(selectedProduct, "publish")}
+                disabled={!canPublish || Boolean(actionLoading)}
+                className="rounded-md bg-green-700 px-3 py-2 text-sm text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Publish
+              </button>
+
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleProductAction(selectedProduct, "unpublish")
+                }
+                disabled={!canUnpublish || Boolean(actionLoading)}
+                className="rounded-md bg-yellow-500 px-3 py-2 text-sm text-indigo-950 hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Unpublish
+              </button>
+
+
+              <button
+                type="button"
+                onClick={() => handleDeleteProduct(selectedProduct)}
+                disabled={Boolean(actionLoading)}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Delete
+              </button>
+            </div>
+
+
+            <div className="space-y-4">
+              <section className="rounded-md border bg-gray-50 p-4">
+                <h3 className="mb-2 font-semibold text-indigo-900">
+                  Product Details
+                </h3>
+                <p className="break-words text-sm"><span className="font-medium">Description:</span> {selectedProduct.description || "—"}</p>
+                <p className="text-sm"><span className="font-medium">SKU:</span> {selectedProduct.sku || "—"}</p>
+                <p className="text-sm"><span className="font-medium">Category:</span> {selectedProduct.category || "—"}{selectedProduct.subcategory ? ` > ${selectedProduct.subcategory}` : ""}</p>
+                <p className="text-sm"><span className="font-medium">Vendor:</span> {selectedProduct.vendor || "—"}</p>
+                <p className="text-sm"><span className="font-medium">Price:</span> {formatAmount(selectedProduct.price)}</p>
+                <p className="text-sm"><span className="font-medium">Discount Price:</span> {selectedProduct.discountPrice !== undefined && selectedProduct.discountPrice !== null ? formatAmount(selectedProduct.discountPrice) : "—"}</p>
+                <p className="text-sm"><span className="font-medium">Stock:</span> {formatNumber(selectedProduct.stock)}</p>
+                <p className="text-sm"><span className="font-medium">Status:</span> {selectedProduct.status || "—"}</p>
+                <p className="text-sm"><span className="font-medium">Compliance:</span> {selectedProduct.compliance || "—"}</p>
+              </section>
+
+
+              <section className="rounded-md border bg-gray-50 p-4">
+                <h3 className="mb-2 font-semibold text-indigo-900">
+                  Variants
+                </h3>
+
+
+                {selectedProduct.variants.length === 0 ? (
+                  <p className="text-sm text-gray-600">
+                    No variants available.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedProduct.variants.map((variant) => (
+                      <div
+                        key={variant.id}
+                        className="rounded border bg-white p-2 text-sm"
+                      >
+                        <p className="font-medium">
+                          {variant.name || "Unnamed Variant"}
+                        </p>
+                        <p>SKU: {variant.sku || "—"}</p>
+                        <p>Stock: {formatNumber(variant.stock)}</p>
+                        <p>Price: {formatAmount(variant.price)}</p>
+                        {variant.color && <p>Color: {variant.color}</p>}
+                        {variant.size && <p>Size: {variant.size}</p>}
+                      </div>
+                    ))}
                   </div>
+                )}
+              </section>
+
+
+              <section className="rounded-md border bg-gray-50 p-4">
+                <h3 className="mb-2 font-semibold text-indigo-900">
+                  Media
+                </h3>
+
+
+                {selectedProduct.images.length === 0 &&
+                selectedProduct.videos.length === 0 ? (
+                  <p className="text-sm text-gray-600">
+                    No media available.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-3">
+                    {selectedProduct.images.map((image, index) => (
+                      <a
+                        key={`image-${index}`}
+                        href={image}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block"
+                      >
+                        <img
+                          src={image}
+                          alt={`${selectedProduct.name || "Product"} ${index + 1}`}
+                          className="h-20 w-20 rounded-md object-cover"
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none";
+                          }}
+                        />
+                      </a>
+                    ))}
+
+
+                    {selectedProduct.videos.map((video, index) => (
+                      <video
+                        key={`video-${index}`}
+                        src={video}
+                        controls
+                        preload="metadata"
+                        className="h-24 w-40 rounded-md bg-black object-cover"
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+
+              <section className="rounded-md border bg-gray-50 p-4">
+                <h3 className="mb-2 font-semibold text-indigo-900">
+                  Performance
+                </h3>
+
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <p><span className="font-medium">Sales:</span> {formatNumber(selectedProduct.performance?.sales)}</p>
+                  <p><span className="font-medium">Returns:</span> {formatNumber(selectedProduct.performance?.returns)}</p>
+                  <p><span className="font-medium">Rating:</span> {selectedProduct.performance?.rating ?? 0}</p>
+                  <p><span className="font-medium">Views:</span> {formatNumber(selectedProduct.performance?.views)}</p>
+                  <p><span className="font-medium">Conversion Rate:</span> {selectedProduct.performance?.conversionRate ?? 0}%</p>
                 </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
 
-                <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+
+      {showProductForm && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={editingProduct ? "Edit product" : "Create product"}
+        >
+          <div className="my-8 w-full max-w-2xl rounded-lg bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-indigo-900">
+                  {editingProduct ? "Edit Product" : "Create Product"}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Product की जरूरी जानकारी भरें।
+                </p>
+              </div>
+
+
+              <button
+                type="button"
+                onClick={closeProductForm}
+                className="rounded-md bg-gray-200 px-3 py-1.5 text-sm hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                type="text"
+                placeholder="Product name"
+                value={productForm.name}
+                onChange={(event) =>
+                  handleProductFormChange("name", event.target.value)
+                }
+                className="rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+
+
+              <input
+                type="text"
+                placeholder="SKU"
+                value={productForm.sku}
+                onChange={(event) =>
+                  handleProductFormChange("sku", event.target.value)
+                }
+                className="rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+
+
+              <input
+                type="text"
+                placeholder="Category"
+                value={productForm.category}
+                onChange={(event) =>
+                  handleProductFormChange("category", event.target.value)
+                }
+                className="rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+
+
+              <input
+                type="text"
+                placeholder="Subcategory (optional)"
+                value={productForm.subcategory}
+                onChange={(event) =>
+                  handleProductFormChange("subcategory", event.target.value)
+                }
+                className="rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Price"
+                value={productForm.price}
+                onChange={(event) =>
+                  handleProductFormChange("price", event.target.value)
+                }
+                className="rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Discount price (optional)"
+                value={productForm.discountPrice}
+                onChange={(event) =>
+                  handleProductFormChange("discountPrice", event.target.value)
+                }
+                className="rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+
+
+              <input
+                type="number"
+                min="0"
+                placeholder="Stock"
+                value={productForm.stock}
+                onChange={(event) =>
+                  handleProductFormChange("stock", event.target.value)
+                }
+                className="rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+
+
+              <input
+                type="text"
+                placeholder="Vendor (optional)"
+                value={productForm.vendor}
+                onChange={(event) =>
+                  handleProductFormChange("vendor", event.target.value)
+                }
+                className="rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+
+
+              <select
+                value={productForm.status}
+                onChange={(event) =>
+                  handleProductFormChange("status", event.target.value)
+                }
+                className="rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              >
+                <option value="draft">Draft</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="published">Published</option>
+                <option value="unpublished">Unpublished</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+
+
+            <textarea
+              rows={5}
+              placeholder="Product description"
+              value={productForm.description}
+              onChange={(event) =>
+                handleProductFormChange("description", event.target.value)
+              }
+              className="mt-3 w-full rounded-md border p-3 outline-none focus:border-blue-500"
+            />
+
+
+            <div className="mt-4 rounded-md border bg-gray-50 p-3">
+              <label className="mb-2 block text-sm font-semibold text-indigo-900">
+                Product Photos
+              </label>
+
+
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleProductFormMediaChange}
+                className="w-full rounded-md border bg-white p-2"
+              />
+
+
+              {productFormMediaPreviews.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {productFormMediaPreviews.map((preview, index) => (
+                    <img
+                      key={`product-form-preview-${index}`}
+                      src={preview}
+                      alt={`Selected product photo ${index + 1}`}
+                      className="h-20 w-20 rounded-md border object-cover"
+                    />
+                  ))}
+                </div>
+              )}
+
+
+              {productFormMediaFiles.length > 0 && (
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-sm text-gray-600">
+                    {productFormMediaFiles.length} photo(s) selected
+                  </p>
+
+
                   <button
                     type="button"
-                    onClick={handleCloseForm}
-                    className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                    onClick={clearProductFormMedia}
+                    className="rounded-md border px-3 py-1.5 text-sm text-gray-700 hover:bg-white"
                   >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-gradient-to-r from-indigo-700 to-purple-700 px-5 py-3 text-sm font-black text-white shadow-md transition hover:from-indigo-800 hover:to-purple-800"
-                  >
-                    {editingProduct ? "Save Changes" : "Add Product"}
+                    Clear Photos
                   </button>
                 </div>
-              </form>
-            </section>
-          </div>
-        )}
+              )}
 
-        {notification && (
-          <div
-            role="status"
-            className="fixed bottom-5 right-5 z-[60] max-w-sm rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-emerald-700 shadow-xl"
-          >
-            {notification}
+
+              <p className="mt-2 text-xs text-gray-500">
+                Photo choose करने के बाद product save करें। Photo automatically upload हो जाएगी।
+              </p>
+            </div>
+
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeProductForm}
+                className="rounded-md border px-4 py-2 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+
+
+              <button
+                type="button"
+                onClick={saveProduct}
+                disabled={
+                  actionLoading === "create-product" ||
+                  actionLoading === "update-product"
+                }
+                className="rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {actionLoading === "create-product" ||
+                actionLoading === "update-product"
+                  ? "Saving..."
+                  : editingProduct
+                    ? "Update Product"
+                    : "Create Product"}
+              </button>
+            </div>
           </div>
-        )}
-      </div>
-    </main>
+        </div>
+      )}
+
+
+      {showRejectModal && productToReject && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reject product"
+        >
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-indigo-900">
+                  Reject Product
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {productToReject.name || "Product"} को reject करने का कारण लिखें।
+                </p>
+              </div>
+
+
+              <button
+                type="button"
+                onClick={closeRejectModal}
+                className="rounded-md bg-gray-200 px-3 py-1.5 text-sm hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+
+
+            <textarea
+              value={rejectionReason}
+              onChange={(event) => setRejectionReason(event.target.value)}
+              rows={5}
+              placeholder="Rejection reason..."
+              className="w-full rounded-md border p-3 outline-none focus:border-red-500"
+            />
+
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeRejectModal}
+                className="rounded-md border px-4 py-2 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+
+
+              <button
+                type="button"
+                onClick={handleRejectProduct}
+                disabled={actionLoading === `reject-${productToReject.id}`}
+                className="rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {actionLoading === `reject-${productToReject.id}`
+                  ? "Rejecting..."
+                  : "Reject Product"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {showVariantsModal && variantsProduct && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Manage product variants"
+        >
+          <div className="my-8 w-full max-w-4xl rounded-lg bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-indigo-900">
+                  Manage Variants
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {variantsProduct.name || "Product"}
+                </p>
+              </div>
+
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={addVariantRow}
+                  className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700"
+                >
+                  Add Variant
+                </button>
+
+
+                <button
+                  type="button"
+                  onClick={closeVariantsModal}
+                  className="rounded-md bg-gray-200 px-3 py-1.5 text-sm hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+
+            <div className="max-h-[55vh] overflow-auto">
+              <table className="min-w-[850px] w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-gray-100 text-left">
+                    <th className="border px-2 py-2">Name</th>
+                    <th className="border px-2 py-2">SKU</th>
+                    <th className="border px-2 py-2">Stock</th>
+                    <th className="border px-2 py-2">Price</th>
+                    <th className="border px-2 py-2">Color</th>
+                    <th className="border px-2 py-2">Size</th>
+                    <th className="border px-2 py-2">Action</th>
+                  </tr>
+                </thead>
+
+
+                <tbody>
+                  {variants.map((variant, index) => (
+                    <tr key={variant.id}>
+                      <td className="border p-2">
+                        <input
+                          value={variant.name}
+                          onChange={(event) =>
+                            updateVariantField(
+                              index,
+                              "name",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded border px-2 py-1"
+                        />
+                      </td>
+                      <td className="border p-2">
+                        <input
+                          value={variant.sku}
+                          onChange={(event) =>
+                            updateVariantField(
+                              index,
+                              "sku",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded border px-2 py-1"
+                        />
+                      </td>
+                      <td className="border p-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={variant.stock}
+                          onChange={(event) =>
+                            updateVariantField(
+                              index,
+                              "stock",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded border px-2 py-1"
+                        />
+                      </td>
+                      <td className="border p-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={variant.price}
+                          onChange={(event) =>
+                            updateVariantField(
+                              index,
+                              "price",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded border px-2 py-1"
+                        />
+                      </td>
+                      <td className="border p-2">
+                        <input
+                          value={variant.color}
+                          onChange={(event) =>
+                            updateVariantField(
+                              index,
+                              "color",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded border px-2 py-1"
+                        />
+                      </td>
+                      <td className="border p-2">
+                        <input
+                          value={variant.size}
+                          onChange={(event) =>
+                            updateVariantField(
+                              index,
+                              "size",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded border px-2 py-1"
+                        />
+                      </td>
+                      <td className="border p-2">
+                        <button
+                          type="button"
+                          onClick={() => removeVariantRow(index)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeVariantsModal}
+                className="rounded-md border px-4 py-2 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+
+
+              <button
+                type="button"
+                onClick={saveVariants}
+                disabled={actionLoading === `variants-${variantsProduct.id}`}
+                className="rounded-md bg-purple-600 px-4 py-2 text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {actionLoading === `variants-${variantsProduct.id}`
+                  ? "Saving..."
+                  : "Save Variants"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {showCategoryModal && categoryProduct && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Update product categories"
+        >
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-indigo-900">
+                  Update Categories
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {categoryProduct.name || "Product"}
+                </p>
+              </div>
+
+
+              <button
+                type="button"
+                onClick={closeCategoryModal}
+                className="rounded-md bg-gray-200 px-3 py-1.5 text-sm hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Main category"
+                value={categoryForm.category}
+                onChange={(event) =>
+                  setCategoryForm((currentForm) => ({
+                    ...currentForm,
+                    category: event.target.value,
+                  }))
+                }
+                className="w-full rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+
+
+              <input
+                type="text"
+                placeholder="Subcategory (optional)"
+                value={categoryForm.subcategory}
+                onChange={(event) =>
+                  setCategoryForm((currentForm) => ({
+                    ...currentForm,
+                    subcategory: event.target.value,
+                  }))
+                }
+                className="w-full rounded-md border px-3 py-2 outline-none focus:border-blue-500"
+              />
+            </div>
+
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeCategoryModal}
+                className="rounded-md border px-4 py-2 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+
+
+              <button
+                type="button"
+                onClick={saveCategories}
+                disabled={actionLoading === `category-${categoryProduct.id}`}
+                className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {actionLoading === `category-${categoryProduct.id}`
+                  ? "Saving..."
+                  : "Save Categories"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {showMediaModal && mediaProduct && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Upload product media"
+        >
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-indigo-900">
+                  Upload Product Media
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {mediaProduct.name || "Product"}
+                </p>
+              </div>
+
+
+              <button
+                type="button"
+                onClick={closeMediaModal}
+                className="rounded-md bg-gray-200 px-3 py-1.5 text-sm hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+
+
+            <input
+              type="file"
+              multiple
+              accept="image/*,video/*"
+              onChange={handleMediaFileChange}
+              className="w-full rounded-md border p-2"
+            />
+
+
+            {mediaPreviews.length > 0 && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-semibold text-indigo-900">
+                  Selected Photos
+                </p>
+
+
+                <div className="flex flex-wrap gap-3">
+                  {mediaPreviews.map((preview, index) => (
+                    <img
+                      key={`media-preview-${index}`}
+                      src={preview}
+                      alt={`Selected media ${index + 1}`}
+                      className="h-20 w-20 rounded-md border object-cover"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+
+            {mediaFiles.length > 0 && (
+              <p className="mt-3 text-sm text-gray-600">
+                Selected files: {mediaFiles.length}
+              </p>
+            )}
+
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeMediaModal}
+                className="rounded-md border px-4 py-2 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+
+
+              <button
+                type="button"
+                onClick={saveMedia}
+                disabled={actionLoading === `media-${mediaProduct.id}`}
+                className="rounded-md bg-gray-700 px-4 py-2 text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {actionLoading === `media-${mediaProduct.id}`
+                  ? "Uploading..."
+                  : "Upload Files"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
+
 
 export default ProductManager;
