@@ -2417,3 +2417,144 @@ export const api = {
 };
 
 console.info("Wish Jinny API client loaded.");
+// ==================== ADMIN PRODUCT EXTENSIONS ====================
+
+export async function fetchProductDetails({ id } = {}) {
+  return requestWithFallback(
+    () =>
+      request(`/products/${encodeURIComponent(id)}`, {
+        auth: false,
+      }),
+    () => {
+      const foundProduct = sampleProducts.find(
+        (product) => String(product.id) === String(id)
+      );
+
+      return foundProduct || null;
+    }
+  );
+}
+
+export async function fetchProductPerformance({ id } = {}) {
+  return requestWithFallback(
+    () =>
+      request(`/products/${encodeURIComponent(id)}/performance`, {
+        auth: false,
+      }),
+    () => ({
+      sales: 0,
+      returns: 0,
+      rating: 0,
+      views: 0,
+      conversionRate: 0,
+      mock: true,
+    })
+  );
+}
+
+export async function approveProduct({ id } = {}) {
+  return requestWithFallback(
+    () =>
+      request(`/products/${encodeURIComponent(id)}/approve`, {
+        method: "PATCH",
+      }),
+    () => ({ success: true, id, status: "approved", mock: true })
+  );
+}
+
+export async function rejectProduct({ id, reason = "" } = {}) {
+  return requestWithFallback(
+    () =>
+      request(`/products/${encodeURIComponent(id)}/reject`, {
+        method: "PATCH",
+        body: { reason },
+      }),
+    () => ({ success: true, id, status: "rejected", mock: true })
+  );
+}
+
+export async function publishProduct({ id } = {}) {
+  return requestWithFallback(
+    () =>
+      request(`/products/${encodeURIComponent(id)}/publish`, {
+        method: "PATCH",
+      }),
+    () => ({ success: true, id, status: "published", mock: true })
+  );
+}
+
+export async function unpublishProduct({ id } = {}) {
+  return requestWithFallback(
+    () =>
+      request(`/products/${encodeURIComponent(id)}/unpublish`, {
+        method: "PATCH",
+      }),
+    () => ({ success: true, id, status: "unpublished", mock: true })
+  );
+}
+
+export async function uploadProductMedia({ id, files = [] } = {}) {
+  const formData = new FormData();
+
+  files.forEach((file) => {
+    formData.append("files", file);
+  });
+
+  return requestWithFallback(
+    () =>
+      request(`/products/${encodeURIComponent(id)}/media`, {
+        method: "POST",
+        body: formData,
+      }),
+    () => ({ success: true, id, uploaded: files.length, mock: true })
+  );
+}
+
+export async function updateProductVariants({ id, variants = [] } = {}) {
+  return requestWithFallback(
+    () =>
+      request(`/products/${encodeURIComponent(id)}/variants`, {
+        method: "PUT",
+        body: { variants },
+      }),
+    () => ({ success: true, id, variants, mock: true })
+  );
+}
+
+export async function updateProductCategories({
+  id,
+  category = "",
+  subcategory = "",
+} = {}) {
+  return requestWithFallback(
+    () =>
+      request(`/products/${encodeURIComponent(id)}/categories`, {
+        method: "PUT",
+        body: { category, subcategory },
+      }),
+    () => ({ success: true, id, category, subcategory, mock: true })
+  );
+}
+
+export async function bulkUpdateProducts({ ids = [], update = {} } = {}) {
+  return requestWithFallback(
+    () =>
+      request("/products/bulk-update", {
+        method: "PATCH",
+        body: { ids, update },
+      }),
+    () => ({ success: true, updated: ids.length, mock: true })
+  );
+}
+
+export const exportProductsCSV = createExportFunction(
+  "/admin/products/export/csv"
+);
+
+export const exportProductsExcel = createExportFunction(
+  "/admin/products/export/excel"
+);
+
+export const exportProductsPDF = createExportFunction(
+  "/admin/products/export/pdf"
+);
