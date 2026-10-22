@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 
+
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
+
 
   const navigationLinks = [
     { label: "Home", to: "/" },
@@ -14,11 +16,14 @@ function Navbar() {
     { label: "Contact", to: "/contact" },
   ];
 
+
   const actionLinks = [
     { label: "Wishlist", to: "/wishlist", icon: "heart" },
     { label: "Cart", to: "/cart", icon: "cart" },
     { label: "Account", to: "/account", icon: "user" },
+    { label: "Admin Panel", to: "/admin", icon: "admin" },
   ];
+
 
   useEffect(() => {
     const handleEscape = (event) => {
@@ -27,10 +32,12 @@ function Navbar() {
       }
     };
 
+
     if (isOpen) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleEscape);
     }
+
 
     return () => {
       document.body.style.overflow = "";
@@ -38,22 +45,28 @@ function Navbar() {
     };
   }, [isOpen]);
 
+
   const closeMenu = () => {
     setIsOpen(false);
   };
 
+
   const handleSearch = (event) => {
     event.preventDefault();
 
+
     const query = searchText.trim();
+
 
     if (!query) {
       window.location.href = "/shop";
       return;
     }
 
+
     window.location.href = `/shop?search=${encodeURIComponent(query)}`;
   };
+
 
   const navClass = ({ isActive }) =>
     [
@@ -64,6 +77,7 @@ function Navbar() {
         : "text-slate-700 hover:text-purple-700 hover:after:w-full",
     ].join(" ");
 
+
   const actionClass = ({ isActive }) =>
     [
       "relative inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition",
@@ -72,6 +86,7 @@ function Navbar() {
         : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700",
     ].join(" ");
 
+
   const mobileNavClass = ({ isActive }) =>
     [
       "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-bold transition",
@@ -79,6 +94,7 @@ function Navbar() {
         ? "bg-indigo-100 text-indigo-700"
         : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700",
     ].join(" ");
+
 
   const LampIcon = ({ className = "h-5 w-5" }) => (
     <svg
@@ -123,6 +139,7 @@ function Navbar() {
     </svg>
   );
 
+
   const SearchIcon = ({ className = "h-5 w-5" }) => (
     <svg
       aria-hidden="true"
@@ -136,6 +153,7 @@ function Navbar() {
       <path d="m16 16 4.5 4.5" strokeLinecap="round" />
     </svg>
   );
+
 
   const HeartIcon = ({ className = "h-5 w-5" }) => (
     <svg
@@ -154,6 +172,7 @@ function Navbar() {
     </svg>
   );
 
+
   const CartIcon = ({ className = "h-5 w-5" }) => (
     <svg
       aria-hidden="true"
@@ -169,6 +188,7 @@ function Navbar() {
     </svg>
   );
 
+
   const UserIcon = ({ className = "h-5 w-5" }) => (
     <svg
       aria-hidden="true"
@@ -182,6 +202,26 @@ function Navbar() {
       <path d="M4.5 20c.8-4 3.3-6 7.5-6s6.7 2 7.5 6" strokeLinecap="round" />
     </svg>
   );
+
+
+  const AdminIcon = ({ className = "h-5 w-5" }) => (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <path
+        d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3Z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="m9 12 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+
 
   const ArrowIcon = ({ className = "h-4 w-4" }) => (
     <svg
@@ -197,17 +237,26 @@ function Navbar() {
     </svg>
   );
 
+
   const getActionIcon = (icon) => {
     if (icon === "heart") {
       return <HeartIcon />;
     }
 
+
     if (icon === "cart") {
       return <CartIcon />;
     }
 
+
+    if (icon === "admin") {
+      return <AdminIcon />;
+    }
+
+
     return <UserIcon />;
   };
+
 
   return (
     <>
@@ -218,6 +267,7 @@ function Navbar() {
             <span>Make a wish, find it here — magical deals await.</span>
           </p>
 
+
           <div className="hidden items-center gap-5 text-indigo-100 lg:flex">
             <span>Free delivery on selected orders</span>
             <span className="h-3 w-px bg-white/30" />
@@ -225,6 +275,7 @@ function Navbar() {
           </div>
         </div>
       </div>
+
 
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -238,17 +289,20 @@ function Navbar() {
                 <LampIcon className="h-6 w-6" />
               </span>
 
+
               <span className="flex flex-col leading-none">
                 <span className="text-xl font-black tracking-tight sm:text-2xl">
                   <span className="text-indigo-950">Wish</span>
                   <span className="ml-1 text-purple-700">Jinny</span>
                 </span>
 
+
                 <span className="mt-1 hidden text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 xl:block">
                   Make a wish. Shop the magic.
                 </span>
               </span>
             </NavLink>
+
 
             <nav
               aria-label="Main navigation"
@@ -265,6 +319,7 @@ function Navbar() {
               ))}
             </nav>
 
+
             <form
               onSubmit={handleSearch}
               className="hidden min-w-0 flex-1 items-center justify-center px-2 2xl:flex"
@@ -273,10 +328,12 @@ function Navbar() {
                 Search Wish Jinny products
               </label>
 
+
               <div className="flex w-full max-w-sm items-center overflow-hidden rounded-xl border border-slate-300 bg-white transition focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100">
                 <span className="pl-3 text-slate-400">
                   <SearchIcon className="h-4 w-4" />
                 </span>
+
 
                 <input
                   id="navbar-desktop-search"
@@ -286,6 +343,7 @@ function Navbar() {
                   placeholder="Search products..."
                   className="min-w-0 flex-1 px-3 py-2.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                 />
+
 
                 {searchText && (
                   <button
@@ -298,6 +356,7 @@ function Navbar() {
                   </button>
                 )}
 
+
                 <button
                   type="submit"
                   className="m-1 rounded-lg bg-gradient-to-r from-indigo-700 to-purple-700 px-4 py-2 text-xs font-extrabold text-white transition hover:from-indigo-800 hover:to-purple-800"
@@ -306,6 +365,7 @@ function Navbar() {
                 </button>
               </div>
             </form>
+
 
             <div className="hidden shrink-0 items-center gap-1 2xl:flex">
               {actionLinks.map((link) => (
@@ -329,6 +389,7 @@ function Navbar() {
                   <span className="relative">
                     {getActionIcon(link.icon)}
 
+
                     {link.icon === "cart" && (
                       <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-yellow-400 px-1 text-[9px] font-black text-indigo-950">
                         0
@@ -336,10 +397,12 @@ function Navbar() {
                     )}
                   </span>
 
+
                   <span>{link.label}</span>
                 </NavLink>
               ))}
             </div>
+
 
             <button
               type="button"
@@ -362,6 +425,7 @@ function Navbar() {
           </div>
         </div>
 
+
         {isOpen && (
           <div
             id="navbar-mobile-navigation"
@@ -379,9 +443,11 @@ function Navbar() {
                   Search Wish Jinny products
                 </label>
 
+
                 <span className="pl-3 text-slate-400">
                   <SearchIcon className="h-5 w-5" />
                 </span>
+
 
                 <input
                   id="navbar-mobile-search"
@@ -392,6 +458,7 @@ function Navbar() {
                   className="min-w-0 flex-1 px-3 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                 />
 
+
                 <button
                   type="submit"
                   className="m-1 rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-800"
@@ -399,6 +466,7 @@ function Navbar() {
                   Search
                 </button>
               </form>
+
 
               <nav aria-label="Mobile main navigation">
                 <ul className="space-y-1">
@@ -417,7 +485,9 @@ function Navbar() {
                 </ul>
               </nav>
 
+
               <div className="my-5 border-t border-slate-200" />
+
 
               <nav aria-label="Mobile account navigation">
                 <ul className="space-y-1">
@@ -432,6 +502,7 @@ function Navbar() {
                           <span className="relative">
                             {getActionIcon(link.icon)}
 
+
                             {link.icon === "cart" && (
                               <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-yellow-400 px-1 text-[9px] font-black text-indigo-950">
                                 0
@@ -439,8 +510,10 @@ function Navbar() {
                             )}
                           </span>
 
+
                           {link.label}
                         </span>
+
 
                         <ArrowIcon className="h-4 w-4" />
                       </NavLink>
@@ -448,6 +521,7 @@ function Navbar() {
                   ))}
                 </ul>
               </nav>
+
 
               <div className="mt-6 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-800 via-purple-700 to-indigo-950 p-5 text-white shadow-lg">
                 <div className="flex items-start justify-between gap-4">
@@ -459,9 +533,11 @@ function Navbar() {
                       </span>
                     </div>
 
+
                     <h3 className="mt-3 text-xl font-black">
                       Your next wish is waiting.
                     </h3>
+
 
                     <p className="mt-2 text-sm leading-6 text-indigo-100">
                       Discover beauty, fashion, jewellery, toys, gifting and
@@ -469,8 +545,10 @@ function Navbar() {
                     </p>
                   </div>
 
+
                   <LampIcon className="h-12 w-12 shrink-0 text-yellow-300/80" />
                 </div>
+
 
                 <NavLink
                   to="/shop"
@@ -488,5 +566,6 @@ function Navbar() {
     </>
   );
 }
+
 
 export default Navbar;
