@@ -146,6 +146,20 @@ function ProductManager() {
     return number.toLocaleString("en-IN");
   };
 
+  const getVendorName = (product) => {
+    const vendor = product?.vendor;
+
+    if (!vendor) {
+      return "—";
+    }
+
+    if (typeof vendor === "string") {
+      return vendor;
+    }
+
+    return vendor.name || vendor.store_name || "—";
+  };
+
   const getStatusClass = (status) => {
     const normalized = String(status || "").toLowerCase();
 
@@ -313,7 +327,7 @@ function ProductManager() {
         product.stock === undefined || product.stock === null
           ? ""
           : String(product.stock),
-      vendor: product.vendor || "",
+      vendor: getVendorName(product),
       status: product.status || "draft",
     });
     setProductFormMediaFiles([]);
@@ -1387,7 +1401,7 @@ function ProductManager() {
                       </td>
 
                       <td className="border px-3 py-2">
-                        {product.vendor || "—"}
+                        {getVendorName(product)}
                       </td>
 
                       <td className="border px-3 py-2">
@@ -1669,7 +1683,7 @@ function ProductManager() {
                 <p className="break-words text-sm"><span className="font-medium">Description:</span> {selectedProduct.description || "—"}</p>
                 <p className="text-sm"><span className="font-medium">SKU:</span> {selectedProduct.sku || "—"}</p>
                 <p className="text-sm"><span className="font-medium">Category:</span> {selectedProduct.category || "—"}{selectedProduct.subcategory ? ` > ${selectedProduct.subcategory}` : ""}</p>
-                <p className="text-sm"><span className="font-medium">Vendor:</span> {selectedProduct.vendor || "—"}</p>
+                <p className="text-sm"><span className="font-medium">Vendor:</span> {getVendorName(selectedProduct)}</p>
                 <p className="text-sm"><span className="font-medium">Price:</span> {formatAmount(selectedProduct.price)}</p>
                 <p className="text-sm"><span className="font-medium">Discount Price:</span> {selectedProduct.discountPrice !== undefined && selectedProduct.discountPrice !== null ? formatAmount(selectedProduct.discountPrice) : "—"}</p>
                 <p className="text-sm"><span className="font-medium">Stock:</span> {formatNumber(selectedProduct.stock)}</p>
